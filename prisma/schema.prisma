@@ -1,0 +1,177 @@
+// Hierarquia do ADR-002. O pai é obrigatório e a exclusão fica restrita enquanto houver filhos.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum StatusCadastro {
+  ATIVO
+  INATIVO
+}
+
+model Empresa {
+  id           String         @id @default(uuid()) @db.Char(36)
+  nome         String         @db.VarChar(128)
+  cnpj         String?        @unique @db.VarChar(20)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  sistemas     Sistema[]
+  usuarios     Usuario[]
+  perfis       Perfil[]
+  permissoes   Permissao[]
+
+  @@map("empresas")
+}
+
+model Sistema {
+  id           String         @id @default(uuid()) @db.Char(36)
+  empresaId    String         @map("empresa_id") @db.Char(36)
+  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome         String         @db.VarChar(128)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  modulos      Modulo[]
+  permissoes   Permissao[]
+  acessos      Acesso[]
+
+  @@unique([empresaId, nome])
+  @@map("sistemas")
+}
+
+model Modulo {
+  id           String         @id @default(uuid()) @db.Char(36)
+  sistemaId    String         @map("sistema_id") @db.Char(36)
+  sistema      Sistema        @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome         String         @db.VarChar(128)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  menus        Menu[]
+  permissoes   Permissao[]
+
+  @@unique([sistemaId, nome])
+  @@map("modulos")
+}
+
+model Menu {
+  id           String         @id @default(uuid()) @db.Char(36)
+  moduloId     String         @map("modulo_id") @db.Char(36)
+  modulo       Modulo         @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome         String         @db.VarChar(128)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  submenus     Submenu[]
+  permissoes   Permissao[]
+
+  @@unique([moduloId, nome])
+  @@map("menus")
+}
+
+model Submenu {
+  id           String         @id @default(uuid()) @db.Char(36)
+  menuId       String         @map("menu_id") @db.Char(36)
+  menu         Menu           @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome         String         @db.VarChar(128)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+
+  permissoes   Permissao[]
+
+  @@unique([menuId, nome])
+  @@map("submenus")
+}
+
+model Usuario {
+  id           String         @id @default(uuid()) @db.Char(36)
+  keycloakSub  String         @unique @map("keycloak_sub") @db.Char(36)
+  nome         String         @db.VarChar(128)
+  email        String         @unique @db.VarChar(254)
+  empresaId    String         @map("empresa_id") @db.Char(36)
+  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  acessos      Acesso[]
+
+  @@map("usuarios")
+}
+
+model Perfil {
+  id           String         @id @default(uuid()) @db.Char(36)
+  empresaId    String         @map("empresa_id") @db.Char(36)
+  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome         String         @db.VarChar(128)
+  descricao    String?        @db.VarChar(512)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+
+  permissoes   Permissao[]
+  acessos      Acesso[]
+
+  @@unique([empresaId, nome])
+  @@map("perfis")
+}
+
+enum TipoRecurso {
+  SISTEMA
+  MODULO
+  MENU
+  SUBMENU
+  EMPRESA
+}
+
+model Permissao {
+  id          String      @id @default(uuid()) @db.Char(36)
+  perfilId    String      @map("perfil_id") @db.Char(36)
+  perfil      Perfil      @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recursoTipo TipoRecurso @map("recurso_tipo")
+  sistemaId   String?     @map("sistema_id") @db.Char(36)
+  sistema     Sistema?    @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  moduloId    String?     @map("modulo_id") @db.Char(36)
+  modulo      Modulo?     @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  menuId      String?     @map("menu_id") @db.Char(36)
+  menu        Menu?       @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submenuId   String?     @map("submenu_id") @db.Char(36)
+  submenu     Submenu?    @relation(fields: [submenuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  empresaId   String?     @map("empresa_id") @db.Char(36)
+  empresa     Empresa?    @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  visualizar  Boolean
+  criar       Boolean
+  editar      Boolean
+  excluir     Boolean
+  criadoEm    DateTime    @default(now()) @map("criado_em")
+  atualizadoEm DateTime   @updatedAt @map("atualizado_em")
+
+  @@unique([perfilId, sistemaId])
+  @@unique([perfilId, moduloId])
+  @@unique([perfilId, menuId])
+  @@unique([perfilId, submenuId])
+  @@unique([perfilId, empresaId])
+  @@map("permissoes")
+}
+
+model Acesso {
+  id           String         @id @default(uuid()) @db.Char(36)
+  usuarioId    String         @map("usuario_id") @db.Char(36)
+  usuario      Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  perfilId     String         @map("perfil_id") @db.Char(36)
+  perfil       Perfil         @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sistemaId    String         @map("sistema_id") @db.Char(36)
+  sistema      Sistema        @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  status       StatusCadastro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+
+  @@unique([usuarioId, sistemaId])
+  @@map("acessos")
+}

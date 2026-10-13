@@ -1,0 +1,80 @@
+SELECT T045.DS_NM_USUARIO, 
+       T025.DS_SISTEMA,
+       T030.DS_MODULO,
+       T035.DS_MENU,
+       T040.DS_SUBMENU
+FROM 
+       T010_empresas 			 T010, 
+       T025_sistemas 			 T025, 
+       T030_modulos  			 T030, 
+       T035_menus    			 T035, 
+       T040_submenus         T040,
+       T052_usuarios_acessos T052,
+       T045_usuarios         T045
+
+WHERE T052.ID_USUARIO = T045.ID_USUARIO
+AND   T052.ID_EMPRESA = T010.ID_EMPRESA
+AND   T052.ID_SISTEMA = T025.ID_SISTEMA
+AND   T052.ID_MODULO  = T030.ID_MODULO
+AND   T052.ID_MENU    = T035.ID_MENU
+AND   T052.ID_SUB_MENU = T040.ID_SUB_MENU
+AND   T045.ID_USUARIO = 1
+ 
+GROUP BY T025.DS_SISTEMA,
+         T030.DS_MODULO,
+	      T035.DS_MENU,
+         T040.DS_SUBMENU
+ 
+################################################
+
+SELECT T025.DS_SISTEMA,
+       T030.DS_MODULO,
+       T035.DS_MENU,
+       T040.DS_SUBMENU
+FROM 
+       T010_empresas  T010, 
+       T025_sistemas  T025, 
+       T030_modulos   T030, 
+       T035_menus     T035, 
+       T040_submenus  T040,
+       T052_usuarios_acessos T052,
+       T045_usuarios         T045
+
+WHERE T052.ID_USUARIO = T045.ID_USUARIO
+AND   T052.ID_EMPRESA = T010.ID_EMPRESA
+AND   T052.ID_SISTEMA = T025.ID_SISTEMA
+AND   T052.ID_MODULO  = T030.ID_MODULO
+AND   T052.ID_MENU    = T035.ID_MENU
+AND   T052.ID_SUB_MENU = T040.ID_SUB_MENU
+AND   T045.ID_USUARIO = 1
+ 
+GROUP BY T025.DS_SISTEMA,
+         T030.DS_MODULO,
+	 T035.DS_MENU,
+         T040.DS_SUBMENU
+         
+###################################################
+
+SELECT T035.DS_MENU,
+       T040.DS_SUBMENU
+FROM 
+	T010_empresas		T010, 
+	T025_sistemas 		T025, 
+	T030_modulos  		T030, 
+	T035_menus    		T035, 
+	T040_submenus           T040,
+	T052_usuarios_acessos   T052,
+	T045_usuarios           T045
+
+WHERE T052.ID_USUARIO = T045.ID_USUARIO
+AND   T052.ID_EMPRESA = T010.ID_EMPRESA
+AND   T052.ID_SISTEMA = T025.ID_SISTEMA
+AND   T052.ID_MODULO  = T030.ID_MODULO
+AND   T052.ID_MENU    = T035.ID_MENU
+AND   T052.ID_SUB_MENU = T040.ID_SUB_MENU
+AND   T045.ID_USUARIO = 1
+ 
+GROUP BY T035.DS_MENU,
+         T040.DS_SUBMENU
+		
+		
