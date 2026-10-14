@@ -2,7 +2,7 @@
 
 O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
 
-Um perfil só existe ligado a uma empresa. O nome é único dentro dela; outra empresa pode repetir o mesmo nome. A comparação segue a collation do banco, sem diferenciar maiúsculas. A descrição é opcional e some quando o texto, depois do recorte, fica vazio. Não há exclusão física.
+Um perfil só existe ligado a uma empresa. O nome é único dentro dela; outra empresa pode repetir o mesmo nome. A comparação segue a collation do banco, sem diferenciar maiúsculas. A descrição é opcional e some quando o texto, depois do recorte, fica vazio. `DELETE /v1/perfis/:id` exclui o perfil quando ele não tem permissão nem acesso. Com vínculo, a resposta é 409 `delete_restricted`.
 
 As ações visualizar, criar, editar e excluir ficam em `/v1/permissoes`, ligadas a este perfil e a uma empresa ou a um nó da cadeia. O usuário entra nesse perfil por `/v1/acessos`. A autorização das rotas está em `autorizacao.md`.
 

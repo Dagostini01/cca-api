@@ -2,7 +2,7 @@
 
 O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
 
-Um acesso liga um usuário de negócio a um perfil dentro de um sistema. Os três precisam ser da mesma empresa. O par usuário + sistema é único: outro sistema da mesma empresa pode receber outro perfil. Usuário e sistema não mudam depois da criação. Trocar o perfil exige que o novo perfil seja da mesma empresa. Não há exclusão física: `status: "INATIVO"` tira o vínculo de uso.
+Um acesso liga um usuário de negócio a um perfil dentro de um sistema. Os três precisam ser da mesma empresa. O par usuário + sistema é único: outro sistema da mesma empresa pode receber outro perfil. Usuário e sistema não mudam depois da criação. Trocar o perfil exige que o novo perfil seja da mesma empresa. `DELETE /v1/acessos/:id` remove o vínculo. `status: "INATIVO"` no PATCH tira o vínculo de uso sem apagar a linha.
 
 Esta rota grava o vínculo. O primeiro acesso ativo liga a autorização descrita em `autorizacao.md`.
 

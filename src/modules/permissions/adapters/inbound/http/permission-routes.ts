@@ -66,4 +66,14 @@ export function registerPermissionRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'PERMISSAO', recursoId: updated.id, descricao: updated.recursoTipo });
     return updated;
   });
+
+  app.delete('/v1/permissoes/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = permissionIdParamsSchema.parse(request.params);
+    const permission = await services.getPermission.execute(params.id);
+    if (authorizer) await authorize(authorizer, actor.id, 'excluir', { tipo: 'EMPRESA', id: await companyOf(permission.perfilId) });
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'PERMISSAO', recursoId: permission.id, descricao: permission.recursoTipo });
+    await services.deletePermission.execute(permission.id);
+    return reply.code(204).send();
+  });
 }

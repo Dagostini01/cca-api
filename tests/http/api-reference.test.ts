@@ -77,7 +77,12 @@ describe('Scalar API reference', () => {
       expect.arrayContaining(['usuarioId', 'perfilId', 'sistemaId']),
     );
     expect(document.paths['/v1/auditorias'].post).toBeUndefined();
+    expect(document.paths['/v1/auditorias/{id}'].delete).toBeUndefined();
+    expect(document.paths['/v1/empresas/{id}'].delete.responses['204']).toBeTruthy();
+    expect(document.paths['/v1/empresas/{id}'].delete.responses['409'].description).toBe('delete_restricted');
     expect(document.paths['/v1/auditorias'].get.responses['200']).toBeTruthy();
     expect(document.paths['/v1/auditorias/{id}'].patch).toBeUndefined();
+    expect(document.paths['/v1/importacoes/legado'].post.requestBody.content['application/json'].schema.properties.senha).toBeUndefined();
+    expect(document.paths['/v1/importacoes/legado'].post.responses['200']).toBeTruthy();
   });
 });

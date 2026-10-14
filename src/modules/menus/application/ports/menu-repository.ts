@@ -11,4 +11,5 @@ export interface MenuRepository {
   list(moduloId?: string): Promise<Menu[]>;
   findById(id: string): Promise<Menu | null>;
   save(menu: Menu): Promise<Menu>;
+  remove(id: string): Promise<void>;
 }

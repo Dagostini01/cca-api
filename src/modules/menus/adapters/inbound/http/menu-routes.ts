@@ -52,4 +52,15 @@ export function registerMenuRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'MENU', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/menus/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = menuIdParamsSchema.parse(request.params);
+    const menu = await services.getMenu.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'MENU', id: menu.id });
+    await services.deleteMenu.ensureDeletable(menu.id);
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'MENU', recursoId: menu.id, descricao: menu.nome });
+    await services.deleteMenu.execute(menu.id);
+    return reply.code(204).send();
+  });
 }

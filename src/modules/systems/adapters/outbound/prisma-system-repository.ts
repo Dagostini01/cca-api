@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { NewSystem, SystemRepository } from '../../application/ports/system-repository.js';
 import type { System } from '../../domain/system.js';
 import { SystemCompanyNotFoundError, SystemNameConflictError, SystemNotFoundError } from '../../domain/system-errors.js';
@@ -60,6 +61,15 @@ export class PrismaSystemRepository implements SystemRepository {
       });
       return toSystem(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.sistema.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

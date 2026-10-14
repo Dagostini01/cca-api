@@ -13,11 +13,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "verify:oidc": "node scripts/dev/verify-oidc.mjs",
+    "import:legacy": "tsx scripts/dev/import-legacy.ts",
     "db:migrate": "prisma migrate deploy",
     "db:verify": "tsx scripts/dev/verify-ownership.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@fastify/cors": "^11.3.1",
     "@prisma/client": "^6.16.0",
     "@scalar/fastify-api-reference": "^1.74.0",
     "fastify": "^5.0.0",

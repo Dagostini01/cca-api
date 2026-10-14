@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { MenuRepository, NewMenu } from '../../application/ports/menu-repository.js';
 import type { Menu } from '../../domain/menu.js';
 import { MenuModuleNotFoundError, MenuNameConflictError, MenuNotFoundError } from '../../domain/menu-errors.js';
@@ -60,6 +61,15 @@ export class PrismaMenuRepository implements MenuRepository {
       });
       return toMenu(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.menu.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

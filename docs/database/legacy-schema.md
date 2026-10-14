@@ -46,8 +46,8 @@ Aceita em `docs/decisions/ADR-002-ownership-hierarchy.md`.
 
 Empresa → Sistema → Módulo → Menu → Submenu. Cada nível exige o pai e permanece amarrado a ele. O catálogo global de `t025_sistemas` não será reproduzido.
 
-Ainda fora desta migration:
+Ainda fora do cadastro atual:
 
-- Não importar `t047_usuarios_senhas`. O vínculo do usuário CCA com o Keycloak será o `sub`.
-- Tratar menu como navegação e permissão como ação sobre um recurso dessa mesma cadeia.
-- RG e CPF são dados pessoais. A importação, se ocorrer, precisa de avaliação própria e não entra em ambiente compartilhado junto com a senha legada.
+- Não importar `t047_usuarios_senhas`. O importador conta essas linhas e não lê senha nem hash para o catálogo.
+- RG, CPF e celular de `t045_usuarios` também ficam de fora. Usuário sem e-mail não é criado.
+- Endereço, CEP, contato e `t070_auditorias` não têm tabela correspondente.

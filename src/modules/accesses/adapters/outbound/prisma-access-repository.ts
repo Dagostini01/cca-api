@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { AccessListFilter, AccessRepository, NewAccess } from '../../application/ports/access-repository.js';
 import type { Access } from '../../domain/access.js';
 import { AccessConflictError, AccessNotFoundError, AccessProfileNotFoundError, AccessSystemNotFoundError, AccessUserNotFoundError } from '../../domain/access-errors.js';
@@ -76,6 +77,15 @@ export class PrismaAccessRepository implements AccessRepository {
       });
       return toAccess(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.acesso.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

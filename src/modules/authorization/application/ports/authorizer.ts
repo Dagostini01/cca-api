@@ -1,6 +1,6 @@
 import type { ResourceKind } from '../../../permissions/domain/permission.js';
 
-export type AuthorizationAction = 'visualizar' | 'criar' | 'editar';
+export type AuthorizationAction = 'visualizar' | 'criar' | 'editar' | 'excluir';
 
 export type AuthorizationTarget = {
   tipo: ResourceKind;

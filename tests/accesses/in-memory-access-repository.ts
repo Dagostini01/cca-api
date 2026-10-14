@@ -47,6 +47,10 @@ export class InMemoryAccessRepository implements AccessRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.accesses.delete(id)) throw new AccessNotFoundError();
+  }
+
   private assertAvailable(usuarioId: string, sistemaId: string, ignoreId: string | null) {
     for (const access of this.accesses.values()) {
       if (access.id !== ignoreId && access.usuarioId === usuarioId && access.sistemaId === sistemaId) throw new AccessConflictError();

@@ -52,4 +52,15 @@ export function registerModuleRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'MODULO', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/modulos/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = moduleIdParamsSchema.parse(request.params);
+    const module = await services.getModule.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'MODULO', id: module.id });
+    await services.deleteModule.ensureDeletable(module.id);
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'MODULO', recursoId: module.id, descricao: module.nome });
+    await services.deleteModule.execute(module.id);
+    return reply.code(204).send();
+  });
 }

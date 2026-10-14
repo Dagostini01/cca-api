@@ -10,6 +10,7 @@ import { createProfileBodySchema, listProfilesQuerySchema, profileIdParamsSchema
 import { createPermissionBodySchema, listPermissionsQuerySchema, permissionIdParamsSchema, permissionResponseSchema, updatePermissionBodySchema } from '../../modules/permissions/adapters/inbound/http/permission-schemas.js';
 import { accessIdParamsSchema, accessResponseSchema, createAccessBodySchema, listAccessesQuerySchema, updateAccessBodySchema } from '../../modules/accesses/adapters/inbound/http/access-schemas.js';
 import { auditIdParamsSchema, auditResponseSchema, listAuditsQuerySchema } from '../../modules/audits/adapters/inbound/http/audit-schemas.js';
+import { importLegacyBodySchema, legacyImportReportSchema } from '../../modules/legacy-import/adapters/inbound/http/legacy-import-schemas.js';
 
 const errorSchema = z.object({
   error: z.string(),
@@ -114,7 +115,7 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
     path: itemPath,
     tags: [resource.tag],
     summary: `Atualiza um ${resource.noun}`,
-    description: `Informe ao menos um campo. Trocar o pai move o registro para outro ${resource.parentField} existente. Não há exclusão física.`,
+    description: `Informe ao menos um campo. Trocar o pai move o registro para outro ${resource.parentField} existente. A exclusão é a rota DELETE.`,
     security: bearerAuth,
     request: {
       params: resource.params,
@@ -125,6 +126,22 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
       ...authErrors,
       404: { description: `${resource.notFound} ou ${resource.parentNotFound}`, content: json(errorSchema) },
       409: { description: resource.conflict, content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: itemPath,
+    tags: [resource.tag],
+    summary: `Exclui um ${resource.noun}`,
+    description: 'A exclusão remove o registro quando ele não tem filhos nem permissão apontando para ele. Com vínculo, a resposta é 409 delete_restricted e nada é apagado. A ação exige excluir.',
+    security: bearerAuth,
+    request: { params: resource.params },
+    responses: {
+      204: { description: 'Registro excluído' },
+      ...authErrors,
+      404: { description: resource.notFound, content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
     },
   });
 }
@@ -216,7 +233,7 @@ export function createOpenApiDocument() {
     path: '/v1/empresas/{id}',
     tags: ['Empresas'],
     summary: 'Atualiza uma empresa',
-    description: 'Informe ao menos um campo. cnpj nulo remove o documento. Não há exclusão física.',
+    description: 'Informe ao menos um campo. cnpj nulo remove o documento. A exclusão é a rota DELETE.',
     security: bearerAuth,
     request: {
       params: companyIdParamsSchema,
@@ -229,6 +246,25 @@ export function createOpenApiDocument() {
       403: { description: 'forbidden', content: json(errorSchema) },
       404: { description: 'company_not_found', content: json(errorSchema) },
       409: { description: 'company_document_conflict', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/empresas/{id}',
+    tags: ['Empresas'],
+    summary: 'Exclui uma empresa',
+    description: 'Remove a empresa quando ela não tem sistema, usuário, perfil nem permissão. O histórico dessa empresa sai junto e não gera um evento EXCLUIR. Com vínculo, a resposta é 409 delete_restricted.',
+    security: bearerAuth,
+    request: { params: companyIdParamsSchema },
+    responses: {
+      204: { description: 'Empresa excluída' },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'company_not_found', content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
@@ -291,7 +327,7 @@ export function createOpenApiDocument() {
     path: '/v1/sistemas/{id}',
     tags: ['Sistemas'],
     summary: 'Atualiza um sistema',
-    description: 'Informe ao menos um campo. empresaId, quando muda, precisa existir. O sistema continua obrigatoriamente ligado a uma empresa. Não há exclusão física.',
+    description: 'Informe ao menos um campo. empresaId, quando muda, precisa existir. O sistema continua obrigatoriamente ligado a uma empresa. A exclusão é a rota DELETE.',
     security: bearerAuth,
     request: {
       params: systemIdParamsSchema,
@@ -405,7 +441,7 @@ export function createOpenApiDocument() {
     path: '/v1/usuarios/{id}',
     tags: ['Usuários'],
     summary: 'Atualiza um usuário',
-    description: 'Informe ao menos um campo entre nome, email, empresaId e status. keycloakSub não muda. Nome, e-mail e status também atualizam o usuário no Keycloak. Não há exclusão física.',
+    description: 'Informe ao menos um campo entre nome, email, empresaId e status. keycloakSub não muda. Nome, e-mail e status também atualizam o usuário no Keycloak. A exclusão é a rota DELETE e não apaga a conta no diretório.',
     security: bearerAuth,
     request: {
       params: userIdParamsSchema,
@@ -419,6 +455,25 @@ export function createOpenApiDocument() {
       404: { description: 'user_not_found, company_not_found ou identity_subject_not_found', content: json(errorSchema) },
       409: { description: 'user_email_conflict ou identity_email_conflict', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/usuarios/{id}',
+    tags: ['Usuários'],
+    summary: 'Exclui um usuário',
+    description: 'Remove o cadastro local quando ele não tem acesso nem evento de auditoria em que seja o autor. A conta no diretório de identidade permanece. Quem exclui a si mesmo não gera evento EXCLUIR. Com vínculo, a resposta é 409 delete_restricted.',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema },
+    responses: {
+      204: { description: 'Usuário excluído' },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'user_not_found', content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -476,7 +531,7 @@ export function createOpenApiDocument() {
     path: '/v1/perfis/{id}',
     tags: ['Perfis'],
     summary: 'Atualiza um perfil',
-    description: 'Informe ao menos um campo. descricao nula apaga o texto. empresaId, quando muda, precisa existir. Não há exclusão física.',
+    description: 'Informe ao menos um campo. descricao nula apaga o texto. empresaId, quando muda, precisa existir. A exclusão é a rota DELETE.',
     security: bearerAuth,
     request: {
       params: profileIdParamsSchema,
@@ -489,6 +544,25 @@ export function createOpenApiDocument() {
       403: { description: 'forbidden', content: json(errorSchema) },
       404: { description: 'profile_not_found ou company_not_found', content: json(errorSchema) },
       409: { description: 'profile_name_conflict', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/perfis/{id}',
+    tags: ['Perfis'],
+    summary: 'Exclui um perfil',
+    description: 'Remove o perfil quando ele não tem permissão nem acesso. Com vínculo, a resposta é 409 delete_restricted.',
+    security: bearerAuth,
+    request: { params: profileIdParamsSchema },
+    responses: {
+      204: { description: 'Perfil excluído' },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'profile_not_found', content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
@@ -564,6 +638,24 @@ export function createOpenApiDocument() {
   });
 
   registry.registerPath({
+    method: 'delete',
+    path: '/v1/permissoes/{id}',
+    tags: ['Permissões'],
+    summary: 'Exclui uma permissão',
+    description: 'Remove a concessão. A ação exige excluir na empresa do perfil.',
+    security: bearerAuth,
+    request: { params: permissionIdParamsSchema },
+    responses: {
+      204: { description: 'Permissão excluída' },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'permission_not_found', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
     method: 'post',
     path: '/v1/acessos',
     tags: ['Acessos'],
@@ -617,7 +709,7 @@ export function createOpenApiDocument() {
     path: '/v1/acessos/{id}',
     tags: ['Acessos'],
     summary: 'Atualiza o perfil ou o status de um acesso',
-    description: 'Usuário e sistema não mudam. O novo perfil precisa ser da mesma empresa. Não há exclusão física.',
+    description: 'Usuário e sistema não mudam. O novo perfil precisa ser da mesma empresa. A exclusão é a rota DELETE.',
     security: bearerAuth,
     request: {
       params: accessIdParamsSchema,
@@ -630,6 +722,24 @@ export function createOpenApiDocument() {
       403: { description: 'forbidden', content: json(errorSchema) },
       404: { description: 'access_not_found, user_not_found, profile_not_found ou system_not_found', content: json(errorSchema) },
       409: { description: 'access_company_mismatch', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/acessos/{id}',
+    tags: ['Acessos'],
+    summary: 'Exclui um acesso',
+    description: 'Remove o vínculo do usuário com o perfil naquele sistema. A ação exige excluir na empresa do sistema.',
+    security: bearerAuth,
+    request: { params: accessIdParamsSchema },
+    responses: {
+      204: { description: 'Acesso excluído' },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'access_not_found', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
@@ -664,6 +774,23 @@ export function createOpenApiDocument() {
       403: { description: 'forbidden', content: json(errorSchema) },
       404: { description: 'audit_not_found', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/importacoes/legado',
+    tags: ['Importação'],
+    summary: 'Importa o catálogo legado já saneado',
+    description: 'Grava empresa, sistema, módulo, menu, submenu e perfil. Um sistema sem empresa no dump só entra quando existe uma única empresa. Acesso antigo vira permissão de visualizar no submenu. Senha, RG e CPF não fazem parte do corpo. Usuário sem e-mail ou sem sub é ignorado.',
+    security: bearerAuth,
+    request: { body: { required: true, content: json(importLegacyBodySchema) } },
+    responses: {
+      200: { description: 'Contagens da importação', content: json(legacyImportReportSchema) },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      409: { description: 'legacy_system_owner_unknown', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
     },
   });
 

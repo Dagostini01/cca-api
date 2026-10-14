@@ -124,3 +124,21 @@
 - Impactos: `POST /v1/usuarios` sem `keycloakSub` cria o usuário no realm. Com `keycloakSub`, só liga se ele existir. `PATCH` de nome, e-mail ou status atualiza a mesma conta. A importação do backup continua de fora.
 - Migration: não há.
 - Rollback: remover o cliente `cca-provisioner` no realm e voltar a exigir `keycloakSub` na criação. Não há DDL para desfazer.
+
+## 014 — Importação do catálogo legado
+
+- Problema: o backup continuava só na máquina, sem caminho para o modelo atual.
+- Estrutura: nenhuma tabela nova. A importação grava nas tabelas já existentes.
+- Justificativa: senha, RG e CPF não entram. O sistema do dump não tem empresa; com uma única empresa, a cadeia fica nela. Com várias, só entra onde um acesso antigo aponta o dono.
+- Impactos: `POST /v1/importacoes/legado` e `npm run import:legacy` passam a carregar o catálogo. Repetir a carga reencontra o nome dentro do pai. O arquivo SQL original não é alterado.
+- Migration: não há.
+- Rollback: apagar os registros importados pela API, na ordem submenu, menu, módulo, acesso, permissão, perfil, usuário, sistema e empresa. Não há DDL para desfazer.
+
+## 015 — Exclusão dos cadastros
+
+- Problema: as rotas gravavam e alteravam, mas não apagavam. A ação `excluir` ficava armazenada sem uso.
+- Estrutura: o enum `acao` de `auditorias` passa a aceitar `EXCLUIR`. As chaves estrangeiras continuam `ON DELETE RESTRICT`.
+- Justificativa: o `DELETE` remove o cadastro quando ele não tem filhos. Empresa sem vínculo também perde o próprio histórico, porque a auditoria aponta para ela. Usuário com autoria em algum evento permanece.
+- Impactos: `DELETE` em empresas, sistemas, módulos, menus, submenus, usuários, perfis, permissões e acessos. A resposta de sucesso é 204. Com vínculo, 409 `delete_restricted`. A auditoria não tem `DELETE`. A conta no Keycloak não é apagada com o usuário local. O CORS passa a anunciar `DELETE`.
+- Migration: `prisma/migrations/20261014060000_audit_delete_action/migration.sql`.
+- Rollback: nova migration devolvendo o enum para `CRIAR` e `ATUALIZAR`, só se não houver linha `EXCLUIR`. Não editar a migration já aplicada.

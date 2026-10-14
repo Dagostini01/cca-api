@@ -6,7 +6,7 @@ O usuário de negócio pertence a uma empresa. O login continua no Keycloak. Est
 
 `POST /v1/usuarios` tem dois caminhos. Sem `keycloakSub`, a API cria o usuário no realm e grava o id devolvido. O username e o e-mail são o e-mail em minúsculas, o nome vira `firstName`, e a conta nasce com a ação `UPDATE_PASSWORD`. A API não define senha e não envia e-mail: este ambiente local não tem SMTP. Com `keycloakSub`, a API só liga um usuário que já existe no realm e não cria outro. Sem o adaptador de diretório, o `keycloakSub` continua obrigatório na regra de negócio.
 
-`keycloakSub` é um UUID, único e imutável. Um `sub` errado se corrige inativando o cadastro e criando outro. O e-mail é obrigatório, único e persistido em minúsculas. A empresa precisa existir. Não há exclusão física.
+`keycloakSub` é um UUID, único e imutável. Um `sub` errado se corrige inativando o cadastro e criando outro. O e-mail é obrigatório, único e persistido em minúsculas. A empresa precisa existir. `DELETE /v1/usuarios/:id` exclui o cadastro local quando ele não tem acesso nem evento de auditoria em que seja o autor. A conta no Keycloak permanece. Quem exclui a si mesmo não gera evento `EXCLUIR`. Com vínculo, a resposta é 409 `delete_restricted`.
 
 `PATCH` pode mudar nome, e-mail e status. Esses três campos também atualizam o usuário no Keycloak: `INATIVO` desliga a conta e `ATIVO` liga. Trocar só a empresa não chama o diretório. Se o cadastro local falhar depois da atualização no Keycloak, a API tenta devolver o nome, o e-mail e o status anteriores.
 

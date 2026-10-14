@@ -181,6 +181,7 @@ model Acesso {
 enum AcaoAuditoria {
   CRIAR
   ATUALIZAR
+  EXCLUIR
 }
 
 enum RecursoAuditoria {

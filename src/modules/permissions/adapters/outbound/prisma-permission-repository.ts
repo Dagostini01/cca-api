@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient, TipoRecurso } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { NewPermission, PermissionRepository } from '../../application/ports/permission-repository.js';
 import type { Permission, ResourceKind } from '../../domain/permission.js';
 import { PermissionConflictError, PermissionNotFoundError, PermissionProfileNotFoundError, PermissionResourceNotFoundError } from '../../domain/permission-errors.js';
@@ -118,6 +119,15 @@ export class PrismaPermissionRepository implements PermissionRepository {
       });
       return toPermission(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.permissao.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

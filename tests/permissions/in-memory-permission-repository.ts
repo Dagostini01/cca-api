@@ -42,6 +42,10 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.permissions.delete(id)) throw new PermissionNotFoundError();
+  }
+
   private assertAvailable(perfilId: string, recursoTipo: Permission['recursoTipo'], recursoId: string, ignoreId: string | null) {
     for (const permission of this.permissions.values()) {
       if (permission.id !== ignoreId && permission.perfilId === perfilId && permission.recursoTipo === recursoTipo && permission.recursoId === recursoId) {

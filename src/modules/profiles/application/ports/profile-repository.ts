@@ -12,4 +12,5 @@ export interface ProfileRepository {
   list(empresaId?: string): Promise<Profile[]>;
   findById(id: string): Promise<Profile | null>;
   save(profile: Profile): Promise<Profile>;
+  remove(id: string): Promise<void>;
 }

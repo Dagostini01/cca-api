@@ -11,4 +11,5 @@ export interface SubmenuRepository {
   list(menuId?: string): Promise<Submenu[]>;
   findById(id: string): Promise<Submenu | null>;
   save(submenu: Submenu): Promise<Submenu>;
+  remove(id: string): Promise<void>;
 }

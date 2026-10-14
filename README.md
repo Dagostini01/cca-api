@@ -32,8 +32,7 @@ npm run db:verify
 ```
 
 ## Escopo da entrega
-- Implementados: estrutura hexagonal inicial, health check, verificação JWT via JWKS, validação de `iss` e `aud`, containers locais, testes de `GetCurrentUser` e de `/health` e `/v1/me`, realm local do Keycloak, migration da cadeia empresa → submenu, CRUD autenticado dessa cadeia, usuário de negócio ligado ao `sub` do Keycloak, criação desse usuário no realm sem senha, perfil de acesso preso à empresa, permissão do perfil sobre a empresa ou um nó dessa cadeia, acesso do usuário a um perfil em um sistema, autorização das rotas por essa concessão, histórico de auditoria das alterações e referência Scalar em `/docs/`.
-- **Não implementados:** importação do backup.
+- Implementados: estrutura hexagonal inicial, health check, verificação JWT via JWKS, validação de `iss` e `aud`, containers locais, CORS restrito às origens do cliente local, testes de `GetCurrentUser` e de `/health` e `/v1/me`, realm local do Keycloak, migration da cadeia empresa → submenu, CRUD autenticado dessa cadeia, usuário de negócio ligado ao `sub` do Keycloak, criação desse usuário no realm sem senha, perfil de acesso preso à empresa, permissão do perfil sobre a empresa ou um nó dessa cadeia, acesso do usuário a um perfil em um sistema, autorização das rotas por essa concessão, histórico de auditoria das alterações, exclusão física dos cadastros quando não há vínculo, importação do catálogo legado sem senha, RG ou CPF, e referência Scalar em `/docs/`.
 - Não usar em produção como está. O health check não verifica dependências externas.
 
 ## Segurança e dados legados

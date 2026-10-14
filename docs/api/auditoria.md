@@ -4,7 +4,7 @@ O contrato executável está na referência Scalar, em `/docs/`. Esta página gu
 
 A auditoria é o histórico das alterações feitas nesta API. Cada linha guarda a data e hora, o usuário local quando ele existe, a ação, o recurso e uma descrição curta. A tela de referência mostra esses campos.
 
-Não há `POST` nem `PATCH`. O cliente não grava nem corrige o histórico. A API registra `CRIAR` e `ATUALIZAR` depois que o cadastro é gravado. Consulta não gera linha. Login e logout ficam no Keycloak e não entram aqui.
+Não há `POST`, `PATCH` nem `DELETE` de auditoria. O cliente não grava, corrige nem apaga o histórico por essa rota. A API registra `CRIAR` e `ATUALIZAR` depois que o cadastro é gravado, e `EXCLUIR` antes de apagar sistema, módulo, menu, submenu, usuário, perfil, permissão ou acesso. A exclusão de uma empresa sem filhos também apaga o histórico dessa empresa e não gera evento `EXCLUIR`. Consulta não gera linha. Login e logout ficam no Keycloak e não entram aqui.
 
 A descrição é o nome do cadastro. Na permissão, é o tipo do recurso. No acesso, é a palavra `acesso`. E-mail e `sub` não são gravados. Se o token ainda não tem usuário local, `usuarioId` e `usuarioNome` ficam nulos. Quando o usuário existe, o nome é a cópia daquele momento.
 

@@ -10,6 +10,7 @@
 - O endpoint `/v1/me` **apenas verifica token**. Token ausente ou inválido responde 401. Falha ao obter as chaves responde 503. Ainda não consulta status local ou autorização.
 - Telas de referência: `docs/architecture/ui-prototype.md`.
 - Para sistemas consumidores: OIDC Authorization Code + PKCE; configuração de cliente e audiência no Keycloak.
+- Navegador: a API só reflete as origens listadas em `CORS_ORIGINS`. O padrão local é o cliente `cca-web` nas portas `4173`.
 - Cadastro: Empresa → Sistema → Módulo → Menu → Submenu, com pai obrigatório. Ver ADR-002.
 - Usuário de negócio: nome, e-mail, empresa e `sub` do Keycloak. Sem senha, RG ou CPF. Sem `sub` no corpo, a API cria a conta no realm e guarda o id. `/v1/me` continua só com as claims do token.
 - Perfil de acesso: nome, descrição e status, obrigatoriamente de uma empresa.
@@ -17,4 +18,5 @@
 - Acesso: usuário, perfil e sistema da mesma empresa. Com ao menos um acesso gravado, as rotas exigem a ação do perfil sobre o recurso. Sem nenhum acesso, qualquer token válido segue. `GET /v1/me` continua só com as claims.
 - Segurança: a autorização efetiva está nas rotas, por recurso e ação. A permissão não herda do pai para o filho.
 - Auditoria: histórico imutável de criação e atualização, com data, usuário local, ação e descrição. Login continua no Keycloak.
+- Importação: o catálogo legado entra sem senha, RG ou CPF. Sistema sem empresa no dump só é gravado quando há uma única empresa ou um acesso que aponta o dono.
 - Desenvolvimento: Keycloak `start-dev` somente local; o realm `cca` é provisionado por `infra/keycloak/configure-realm.sh`. Endurecer configurações para produção.

@@ -1,7 +1,7 @@
 import { InvalidAuditDescriptionError } from './audit-errors.js';
 
 export const AUDIT_DESCRIPTION_MAX_LENGTH = 512;
-export const AUDIT_ACTIONS = ['CRIAR', 'ATUALIZAR'] as const;
+export const AUDIT_ACTIONS = ['CRIAR', 'ATUALIZAR', 'EXCLUIR'] as const;
 export const AUDIT_RESOURCES = ['EMPRESA', 'SISTEMA', 'MODULO', 'MENU', 'SUBMENU', 'USUARIO', 'PERFIL', 'PERMISSAO', 'ACESSO'] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

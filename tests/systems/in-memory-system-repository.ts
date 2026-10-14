@@ -39,6 +39,10 @@ export class InMemorySystemRepository implements SystemRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.systems.delete(id)) throw new SystemNotFoundError();
+  }
+
   private assertNameAvailable(empresaId: string, nome: string, ignoreId: string | null) {
     for (const system of this.systems.values()) {
       if (system.empresaId === empresaId && system.id !== ignoreId && systemNamesConflict(system.nome, nome)) {

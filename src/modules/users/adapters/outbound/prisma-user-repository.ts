@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { NewBusinessUser, UserRepository } from '../../application/ports/user-repository.js';
 import type { BusinessUser } from '../../domain/user.js';
 import { UserCompanyNotFoundError, UserEmailConflictError, UserNotFoundError, UserSubjectConflictError } from '../../domain/user-errors.js';
@@ -73,6 +74,15 @@ export class PrismaUserRepository implements UserRepository {
       });
       return toUser(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.usuario.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

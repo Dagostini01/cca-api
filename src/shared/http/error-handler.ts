@@ -38,6 +38,8 @@ const statusByCode: Record<string, number> = {
   identity_email_conflict: 409,
   identity_subject_not_found: 404,
   identity_directory_unavailable: 503,
+  legacy_system_owner_unknown: 409,
+  delete_restricted: 409,
   invalid_profile_name: 400,
   invalid_profile_description: 400,
   empty_profile_update: 400,

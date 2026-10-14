@@ -11,4 +11,5 @@ export interface PermissionRepository {
   list(perfilId?: string): Promise<Permission[]>;
   findById(id: string): Promise<Permission | null>;
   save(permission: Permission): Promise<Permission>;
+  remove(id: string): Promise<void>;
 }

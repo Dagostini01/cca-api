@@ -11,4 +11,5 @@ export interface SystemRepository {
   list(empresaId?: string): Promise<System[]>;
   findById(id: string): Promise<System | null>;
   save(system: System): Promise<System>;
+  remove(id: string): Promise<void>;
 }

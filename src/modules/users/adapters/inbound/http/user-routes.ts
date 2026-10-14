@@ -57,4 +57,17 @@ export function registerUserRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'USUARIO', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/usuarios/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = userIdParamsSchema.parse(request.params);
+    const user = await services.getUser.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'EMPRESA', id: user.empresaId });
+    await services.deleteUser.ensureDeletable(user.id);
+    if (user.keycloakSub !== actor.id.trim().toLowerCase()) {
+      await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'USUARIO', recursoId: user.id, descricao: user.nome });
+    }
+    await services.deleteUser.execute(user.id);
+    return reply.code(204).send();
+  });
 }

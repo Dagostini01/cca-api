@@ -46,6 +46,10 @@ export class InMemoryUserRepository implements UserRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.users.delete(id)) throw new UserNotFoundError();
+  }
+
   private assertAvailable(keycloakSub: string, email: string, ignoreId: string | null) {
     for (const user of this.users.values()) {
       if (user.id === ignoreId) continue;

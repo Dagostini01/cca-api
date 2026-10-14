@@ -35,6 +35,10 @@ export class InMemoryMenuRepository implements MenuRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.menus.delete(id)) throw new MenuNotFoundError();
+  }
+
   private assertNameAvailable(moduloId: string, nome: string, ignoreId: string | null) {
     for (const menu of this.menus.values()) {
       if (menu.moduloId === moduloId && menu.id !== ignoreId && menuNamesConflict(menu.nome, nome)) {

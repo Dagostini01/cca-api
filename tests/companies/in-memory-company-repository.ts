@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CompanyRepository, NewCompany } from '../../src/modules/companies/application/ports/company-repository.js';
 import type { Company } from '../../src/modules/companies/domain/company.js';
-import { CompanyDocumentConflictError } from '../../src/modules/companies/domain/company-errors.js';
+import { CompanyDocumentConflictError, CompanyNotFoundError } from '../../src/modules/companies/domain/company-errors.js';
 
 function clone(company: Company): Company {
   return {
@@ -37,6 +37,10 @@ export class InMemoryCompanyRepository implements CompanyRepository {
     const stored: Company = { ...company, atualizadoEm: new Date() };
     this.companies.set(company.id, stored);
     return clone(stored);
+  }
+
+  async remove(id: string): Promise<void> {
+    if (!this.companies.delete(id)) throw new CompanyNotFoundError();
   }
 
   private assertDocumentAvailable(cnpj: string | null, ignoreId: string | null) {

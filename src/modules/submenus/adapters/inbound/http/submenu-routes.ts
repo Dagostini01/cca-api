@@ -52,4 +52,15 @@ export function registerSubmenuRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'SUBMENU', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/submenus/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = submenuIdParamsSchema.parse(request.params);
+    const submenu = await services.getSubmenu.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'SUBMENU', id: submenu.id });
+    await services.deleteSubmenu.ensureDeletable(submenu.id);
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'SUBMENU', recursoId: submenu.id, descricao: submenu.nome });
+    await services.deleteSubmenu.execute(submenu.id);
+    return reply.code(204).send();
+  });
 }

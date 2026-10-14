@@ -14,4 +14,5 @@ export interface UserRepository {
   findById(id: string): Promise<BusinessUser | null>;
   findBySubject(keycloakSub: string): Promise<BusinessUser | null>;
   save(user: BusinessUser): Promise<BusinessUser>;
+  remove(id: string): Promise<void>;
 }

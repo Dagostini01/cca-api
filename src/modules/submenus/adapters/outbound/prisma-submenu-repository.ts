@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { NewSubmenu, SubmenuRepository } from '../../application/ports/submenu-repository.js';
 import type { Submenu } from '../../domain/submenu.js';
 import { SubmenuMenuNotFoundError, SubmenuNameConflictError, SubmenuNotFoundError } from '../../domain/submenu-errors.js';
@@ -60,6 +61,15 @@ export class PrismaSubmenuRepository implements SubmenuRepository {
       });
       return toSubmenu(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.submenu.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

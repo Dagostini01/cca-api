@@ -35,6 +35,10 @@ export class InMemoryModuleRepository implements ModuleRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.modules.delete(id)) throw new ModuleNotFoundError();
+  }
+
   private assertNameAvailable(sistemaId: string, nome: string, ignoreId: string | null) {
     for (const module of this.modules.values()) {
       if (module.sistemaId === sistemaId && module.id !== ignoreId && moduleNamesConflict(module.nome, nome)) {

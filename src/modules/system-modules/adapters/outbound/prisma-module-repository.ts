@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { ModuleRepository, NewModule } from '../../application/ports/module-repository.js';
 import type { Module } from '../../domain/module.js';
 import { ModuleNameConflictError, ModuleNotFoundError, ModuleSystemNotFoundError } from '../../domain/module-errors.js';
@@ -60,6 +61,15 @@ export class PrismaModuleRepository implements ModuleRepository {
       });
       return toModule(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.modulo.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

@@ -2,6 +2,7 @@ import type { ChainResourceLookup } from '../ports/chain-resource-lookup.js';
 import type { PermissionRepository } from '../ports/permission-repository.js';
 import type { ProfileOwnerLookup } from '../ports/profile-owner-lookup.js';
 import { CreatePermission } from '../use-cases/create-permission.js';
+import { DeletePermission } from '../use-cases/delete-permission.js';
 import { GetPermission } from '../use-cases/get-permission.js';
 import { ListPermissions } from '../use-cases/list-permissions.js';
 import { UpdatePermission } from '../use-cases/update-permission.js';
@@ -11,6 +12,7 @@ export type PermissionServices = {
   listPermissions: ListPermissions;
   getPermission: GetPermission;
   updatePermission: UpdatePermission;
+  deletePermission: DeletePermission;
 };
 
 export function createPermissionServices(
@@ -23,5 +25,6 @@ export function createPermissionServices(
     listPermissions: new ListPermissions(permissions),
     getPermission: new GetPermission(permissions),
     updatePermission: new UpdatePermission(permissions),
+    deletePermission: new DeletePermission(permissions),
   };
 }

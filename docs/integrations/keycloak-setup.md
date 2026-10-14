@@ -7,6 +7,7 @@ O Compose sobe o Keycloak em `http://127.0.0.1:8080` e o serviço `keycloak-init
 - Realm `cca`, com HTTP liberado apenas neste ambiente local (`sslRequired=NONE`).
 - Cliente público `cca-web`: Authorization Code, PKCE S256 obrigatório, sem implicit flow e sem Resource Owner Password Credentials.
 - Redirect URIs locais: `http://127.0.0.1:4173/callback` e `http://localhost:4173/callback`. Web origins restritas a essas origens.
+- A API aceita o navegador nessas mesmas origens, pela variável `CORS_ORIGINS`. Outra porta do front entra nessa lista. A origem `*` não é aceita.
 - Cliente `cca-api`, usado como audiência da API. Não tem fluxo de login.
 - Cliente confidencial `cca-provisioner`, só com service account. O segredo vem de `KEYCLOAK_PROVISIONER_CLIENT_SECRET` e não fica no script. A service account recebe `manage-users`, `view-users` e `query-users` em `realm-management`.
 - Audience mapper em `cca-web` para incluir `cca-api` no `aud` do access token.

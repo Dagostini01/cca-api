@@ -18,4 +18,5 @@ export interface AccessRepository {
   count(): Promise<number>;
   findById(id: string): Promise<Access | null>;
   save(access: Access): Promise<Access>;
+  remove(id: string): Promise<void>;
 }

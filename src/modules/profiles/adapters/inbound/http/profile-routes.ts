@@ -52,4 +52,15 @@ export function registerProfileRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'PERFIL', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/perfis/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = profileIdParamsSchema.parse(request.params);
+    const profile = await services.getProfile.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'EMPRESA', id: profile.empresaId });
+    await services.deleteProfile.ensureDeletable(profile.id);
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'PERFIL', recursoId: profile.id, descricao: profile.nome });
+    await services.deleteProfile.execute(profile.id);
+    return reply.code(204).send();
+  });
 }

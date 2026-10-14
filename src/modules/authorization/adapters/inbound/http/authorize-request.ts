@@ -3,7 +3,7 @@ import type { AuthorizationTarget, Authorizer } from '../../../application/ports
 export async function authorize(
   authorizer: Authorizer | undefined,
   subject: string,
-  action: 'visualizar' | 'criar' | 'editar',
+  action: 'visualizar' | 'criar' | 'editar' | 'excluir',
   target: AuthorizationTarget,
 ): Promise<void> {
   if (authorizer) await authorizer.assert(subject, action, target);

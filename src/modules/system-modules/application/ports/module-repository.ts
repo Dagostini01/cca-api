@@ -11,4 +11,5 @@ export interface ModuleRepository {
   list(sistemaId?: string): Promise<Module[]>;
   findById(id: string): Promise<Module | null>;
   save(module: Module): Promise<Module>;
+  remove(id: string): Promise<void>;
 }

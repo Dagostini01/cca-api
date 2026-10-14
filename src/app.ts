@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import type { Env } from './shared/config/env.js';
 import { registerApiReference } from './shared/http/api-reference.js';
@@ -39,6 +40,7 @@ import type { AuditRecorder } from './modules/audits/application/ports/audit-rec
 import type { AuditRepository } from './modules/audits/application/ports/audit-repository.js';
 import { createAuditServices } from './modules/audits/application/factories/audit-services-factory.js';
 import { registerAuditRoutes } from './modules/audits/adapters/inbound/http/audit-routes.js';
+import { registerLegacyImportRoutes } from './modules/legacy-import/adapters/inbound/http/legacy-import-routes.js';
 
 export type BuildAppOptions = {
   tokenVerifier?: TokenVerifier;
@@ -61,6 +63,11 @@ export type BuildAppOptions = {
 
 export function buildApp(env: Env, options: BuildAppOptions = {}) {
   const app = Fastify({ logger: options.logger ?? true });
+  void app.register(cors, {
+    origin: env.CORS_ORIGINS,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
+  });
   const verifier = options.tokenVerifier ?? createKeycloakTokenVerifier(env);
   const getCurrentUser = createGetCurrentUser(verifier);
   registerErrorHandler(app);
@@ -69,25 +76,48 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
   const authorizer = options.authorizer;
   const audits = options.auditRecorder;
   if (options.companyRepository) {
-    registerCompanyRoutes(app, createCompanyServices(options.companyRepository), getCurrentUser, authorizer, audits);
+    registerCompanyRoutes(app, createCompanyServices(options.companyRepository, {
+      systems: options.systemRepository,
+      users: options.userRepository,
+      profiles: options.profileRepository,
+      permissions: options.permissionRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.systemRepository) {
-    registerSystemRoutes(app, createSystemServices(options.systemRepository, options.companyRepository), getCurrentUser, authorizer, audits);
+    registerSystemRoutes(app, createSystemServices(options.systemRepository, options.companyRepository, {
+      modules: options.moduleRepository,
+      permissions: options.permissionRepository,
+      accesses: options.accessRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.systemRepository && options.moduleRepository) {
-    registerModuleRoutes(app, createModuleServices(options.moduleRepository, options.systemRepository), getCurrentUser, authorizer, audits);
+    registerModuleRoutes(app, createModuleServices(options.moduleRepository, options.systemRepository, {
+      menus: options.menuRepository,
+      permissions: options.permissionRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.moduleRepository && options.menuRepository) {
-    registerMenuRoutes(app, createMenuServices(options.menuRepository, options.moduleRepository), getCurrentUser, authorizer, audits);
+    registerMenuRoutes(app, createMenuServices(options.menuRepository, options.moduleRepository, {
+      submenus: options.submenuRepository,
+      permissions: options.permissionRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.menuRepository && options.submenuRepository) {
-    registerSubmenuRoutes(app, createSubmenuServices(options.submenuRepository, options.menuRepository), getCurrentUser, authorizer, audits);
+    registerSubmenuRoutes(app, createSubmenuServices(options.submenuRepository, options.menuRepository, {
+      permissions: options.permissionRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.userRepository) {
-    registerUserRoutes(app, createUserServices(options.userRepository, options.companyRepository, options.identityDirectory), getCurrentUser, authorizer, audits);
+    registerUserRoutes(app, createUserServices(options.userRepository, options.companyRepository, options.identityDirectory, {
+      accesses: options.accessRepository,
+      audits: options.auditRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.profileRepository) {
-    registerProfileRoutes(app, createProfileServices(options.profileRepository, options.companyRepository), getCurrentUser, authorizer, audits);
+    registerProfileRoutes(app, createProfileServices(options.profileRepository, options.companyRepository, {
+      permissions: options.permissionRepository,
+      accesses: options.accessRepository,
+    }), getCurrentUser, authorizer, audits);
   }
   if (options.profileRepository && options.permissionRepository && options.chainResourceLookup) {
     registerPermissionRoutes(
@@ -111,6 +141,27 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
   }
   if (options.auditRepository) {
     registerAuditRoutes(app, createAuditServices(options.auditRepository), getCurrentUser, authorizer);
+  }
+  if (
+    options.companyRepository
+    && options.systemRepository
+    && options.moduleRepository
+    && options.menuRepository
+    && options.submenuRepository
+    && options.profileRepository
+  ) {
+    registerLegacyImportRoutes(app, {
+      companies: options.companyRepository,
+      systems: options.systemRepository,
+      modules: options.moduleRepository,
+      menus: options.menuRepository,
+      submenus: options.submenuRepository,
+      profiles: options.profileRepository,
+      users: options.userRepository,
+      permissions: options.permissionRepository,
+      accesses: options.accessRepository,
+      directory: options.identityDirectory,
+    }, getCurrentUser, authorizer, audits);
   }
   registerApiReference(app);
   return app;

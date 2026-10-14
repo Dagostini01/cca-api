@@ -39,6 +39,10 @@ export class InMemoryProfileRepository implements ProfileRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.profiles.delete(id)) throw new ProfileNotFoundError();
+  }
+
   private assertNameAvailable(empresaId: string, nome: string, ignoreId: string | null) {
     for (const profile of this.profiles.values()) {
       if (profile.empresaId === empresaId && profile.id !== ignoreId && profileNamesConflict(profile.nome, nome)) {

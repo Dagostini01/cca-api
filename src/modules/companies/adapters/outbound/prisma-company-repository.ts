@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { CompanyRepository, NewCompany } from '../../application/ports/company-repository.js';
 import type { Company } from '../../domain/company.js';
 import { CompanyDocumentConflictError, CompanyNotFoundError } from '../../domain/company-errors.js';
@@ -59,6 +60,26 @@ export class PrismaCompanyRepository implements CompanyRepository {
       });
       return toCompany(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const [systems, users, profiles, permissions] = await Promise.all([
+          tx.sistema.count({ where: { empresaId: id } }),
+          tx.usuario.count({ where: { empresaId: id } }),
+          tx.perfil.count({ where: { empresaId: id } }),
+          tx.permissao.count({ where: { empresaId: id } }),
+        ]);
+        if (systems + users + profiles + permissions > 0) throw new DeleteRestrictedError();
+        await tx.auditoria.deleteMany({ where: { empresaId: id } });
+        await tx.empresa.delete({ where: { id } });
+      });
+    } catch (error) {
+      if (error instanceof DeleteRestrictedError) throw error;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

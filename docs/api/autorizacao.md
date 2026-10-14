@@ -26,7 +26,7 @@ A partir desse acesso, token sem usuário local ativo recebe 403 `forbidden`. Us
 
 Um acesso ativo aplica as permissões do perfil somente nos recursos daquele sistema e da empresa dele. Vários acessos ativos se somam. Perfil inativo ou acesso inativo não entra. A ação no pai não vale para o filho: visualizar o sistema não visualiza o módulo.
 
-`excluir` continua gravado e não há rota de exclusão física, então essa ação não é consultada.
+`excluir` vale só no `DELETE` do mesmo alvo em que `editar` vale. Empresa, sistema, módulo, menu e submenu usam o próprio nó. Usuário, perfil, permissão e acesso usam a `EMPRESA` dona. A auditoria não tem exclusão.
 
 Consulta por id carrega o registro primeiro. Se ele não existe, a resposta segue o 404 daquele recurso. Se existe e a ação falta, a resposta é 403 `forbidden`. Na criação, o pai ausente continua 404. Pai existente sem a ação é 403.
 
@@ -37,15 +37,15 @@ Listas devolvem só o que o chamador pode visualizar. Sem nenhum item visível, 
 | Rota | Ação |
 | --- | --- |
 | `POST /v1/empresas` | `criar` em ao menos uma `EMPRESA` que o chamador já administra. Na trava inicial, qualquer token válido cria a primeira. |
-| `GET` e `PATCH /v1/empresas/:id` | `visualizar` ou `editar` nessa `EMPRESA` |
+| `GET`, `PATCH` e `DELETE /v1/empresas/:id` | `visualizar`, `editar` ou `excluir` nessa `EMPRESA` |
 | `GET /v1/empresas` | só as empresas com `visualizar` |
 | `POST /v1/sistemas` | `criar` na `EMPRESA` do corpo |
-| `GET` e `PATCH /v1/sistemas/:id` | `visualizar` ou `editar` nesse `SISTEMA` |
+| `GET`, `PATCH` e `DELETE /v1/sistemas/:id` | `visualizar`, `editar` ou `excluir` nesse `SISTEMA` |
 | `POST /v1/modulos` | `criar` no `SISTEMA` pai |
-| `GET` e `PATCH` de módulo, menu ou submenu | `visualizar` ou `editar` naquele nó |
+| `GET`, `PATCH` e `DELETE` de módulo, menu ou submenu | `visualizar`, `editar` ou `excluir` naquele nó |
 | `POST /v1/menus` | `criar` no `MODULO` pai |
 | `POST /v1/submenus` | `criar` no `MENU` pai |
-| `POST`, `GET` e `PATCH` de usuários, perfis, permissões e acessos | `criar`, `visualizar` ou `editar` na `EMPRESA` dona do cadastro |
+| `POST`, `GET`, `PATCH` e `DELETE` de usuários, perfis, permissões e acessos | `criar`, `visualizar`, `editar` ou `excluir` na `EMPRESA` dona do cadastro |
 | `GET /v1/auditorias` | `visualizar` na `EMPRESA` de cada evento. A lista omite o resto |
 
 Mover um usuário ou um perfil para outra empresa exige `editar` na empresa atual e na empresa de destino. Mover um sistema exige `editar` no sistema e `editar` na empresa de destino. Mover módulo, menu ou submenu exige `editar` no nó e `criar` no novo pai.

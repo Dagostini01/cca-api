@@ -4,7 +4,7 @@ O contrato executável está na referência Scalar, em `/docs/`. Esta página gu
 
 Um sistema só existe ligado a uma empresa. `empresaId` é obrigatório na criação e precisa ser o id de uma empresa já cadastrada. O nome é único dentro da empresa; outra empresa pode repetir o mesmo nome. A comparação segue a collation do banco, sem diferenciar maiúsculas.
 
-Não há exclusão física. `status: "INATIVO"` tira o sistema de uso e preserva os módulos que vierem a existir.
+`DELETE /v1/sistemas/:id` exclui o sistema quando ele não tem módulo, permissão nem acesso. Com vínculo, a resposta é 409 `delete_restricted`. `status: "INATIVO"` no PATCH continua tirando o sistema de uso e preservando os módulos.
 
 ## Rotas
 

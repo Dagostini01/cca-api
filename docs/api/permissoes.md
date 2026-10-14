@@ -4,7 +4,7 @@ O contrato executável está na referência Scalar, em `/docs/`. Esta página gu
 
 Uma permissão liga um perfil a um recurso e marca as ações visualizar, criar, editar e excluir. O recurso é uma empresa, um sistema, um módulo, um menu ou um submenu. No nó da cadeia, a empresa não entra no corpo: ela é a empresa do sistema ancestral. Em `EMPRESA`, o recurso é o id da empresa. Nos dois casos, precisa ser a mesma empresa do perfil. Um perfil da empresa A não aponta para um recurso da empresa B.
 
-O par perfil + recurso é único. Perfil e recurso não mudam depois da criação. Na criação, pelo menos uma ação precisa ser verdadeira. Na atualização, as quatro podem ficar falsas; a linha permanece. Não há exclusão física.
+O par perfil + recurso é único. Perfil e recurso não mudam depois da criação. Na criação, pelo menos uma ação precisa ser verdadeira. Na atualização, as quatro podem ficar falsas; a linha permanece. `DELETE /v1/permissoes/:id` remove a concessão.
 
 Estas rotas gravam a concessão. Quem pode chamá-las, e como a concessão passa a valer nas outras rotas, está em `autorizacao.md`. O vínculo do usuário com o perfil e o sistema está em `/v1/acessos`.
 

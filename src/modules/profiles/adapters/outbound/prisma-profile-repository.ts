@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
 import type { NewProfile, ProfileRepository } from '../../application/ports/profile-repository.js';
 import type { Profile } from '../../domain/profile.js';
 import { ProfileCompanyNotFoundError, ProfileNameConflictError, ProfileNotFoundError } from '../../domain/profile-errors.js';
@@ -62,6 +63,15 @@ export class PrismaProfileRepository implements ProfileRepository {
       });
       return toProfile(row);
     } catch (error) {
+      mapPersistenceError(error);
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    try {
+      await this.prisma.perfil.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new DeleteRestrictedError();
       mapPersistenceError(error);
     }
   }

@@ -1,6 +1,7 @@
 import type { AccessRepository } from '../ports/access-repository.js';
 import type { AccessPartyLookup } from '../ports/access-party-lookup.js';
 import { CreateAccess } from '../use-cases/create-access.js';
+import { DeleteAccess } from '../use-cases/delete-access.js';
 import { GetAccess } from '../use-cases/get-access.js';
 import { ListAccesses } from '../use-cases/list-accesses.js';
 import { UpdateAccess } from '../use-cases/update-access.js';
@@ -10,6 +11,7 @@ export type AccessServices = {
   listAccesses: ListAccesses;
   getAccess: GetAccess;
   updateAccess: UpdateAccess;
+  deleteAccess: DeleteAccess;
 };
 
 export function createAccessServices(
@@ -23,5 +25,6 @@ export function createAccessServices(
     listAccesses: new ListAccesses(accesses),
     getAccess: new GetAccess(accesses),
     updateAccess: new UpdateAccess(accesses, users, profiles, systems),
+    deleteAccess: new DeleteAccess(accesses),
   };
 }

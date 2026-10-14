@@ -149,4 +149,15 @@ describe('authorize access', () => {
     await seeded.users.updateUser.execute(seeded.user.id, { status: 'INATIVO' });
     await expect(seeded.authorizer.assert(subject, 'visualizar', { tipo: 'EMPRESA', id: seeded.company.id })).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it('consults excluir only as its own action', async () => {
+    const seeded = await granted();
+    await permit(seeded, 'EMPRESA', seeded.company.id, 'visualizar');
+    await expect(seeded.authorizer.assert(subject, 'excluir', { tipo: 'EMPRESA', id: seeded.company.id })).rejects.toBeInstanceOf(ForbiddenError);
+    await seeded.permissions.updatePermission.execute(
+      (await seeded.permissions.listPermissions.execute({ perfilId: seeded.profile.id }))[0].id,
+      { excluir: true },
+    );
+    await expect(seeded.authorizer.assert(subject, 'excluir', { tipo: 'EMPRESA', id: seeded.company.id })).resolves.toBeUndefined();
+  });
 });

@@ -11,4 +11,5 @@ export interface CompanyRepository {
   list(): Promise<Company[]>;
   findById(id: string): Promise<Company | null>;
   save(company: Company): Promise<Company>;
+  remove(id: string): Promise<void>;
 }

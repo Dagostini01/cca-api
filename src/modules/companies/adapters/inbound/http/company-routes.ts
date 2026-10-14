@@ -48,4 +48,13 @@ export function registerCompanyRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'EMPRESA', recursoId: updated.id, descricao: updated.nome });
     return updated;
   });
+
+  app.delete('/v1/empresas/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = companyIdParamsSchema.parse(request.params);
+    const company = await services.getCompany.execute(params.id);
+    await authorize(authorizer, actor.id, 'excluir', { tipo: 'EMPRESA', id: company.id });
+    await services.deleteCompany.execute(company.id);
+    return reply.code(204).send();
+  });
 }

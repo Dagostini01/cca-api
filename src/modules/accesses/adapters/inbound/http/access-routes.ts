@@ -75,4 +75,14 @@ export function registerAccessRoutes(
     await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'ACESSO', recursoId: updated.id, descricao: 'acesso' });
     return updated;
   });
+
+  app.delete('/v1/acessos/:id', async (request, reply) => {
+    const actor = await requireUser(request, getCurrentUser);
+    const params = accessIdParamsSchema.parse(request.params);
+    const access = await services.getAccess.execute(params.id);
+    if (authorizer) await authorize(authorizer, actor.id, 'excluir', { tipo: 'EMPRESA', id: await companyOfSystem(access.sistemaId) });
+    await recordChange(audits, actor.id, { acao: 'EXCLUIR', recursoTipo: 'ACESSO', recursoId: access.id, descricao: 'acesso' });
+    await services.deleteAccess.execute(access.id);
+    return reply.code(204).send();
+  });
 }

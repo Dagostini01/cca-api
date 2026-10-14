@@ -35,6 +35,10 @@ export class InMemorySubmenuRepository implements SubmenuRepository {
     return clone(stored);
   }
 
+  async remove(id: string): Promise<void> {
+    if (!this.submenus.delete(id)) throw new SubmenuNotFoundError();
+  }
+
   private assertNameAvailable(menuId: string, nome: string, ignoreId: string | null) {
     for (const submenu of this.submenus.values()) {
       if (submenu.menuId === menuId && submenu.id !== ignoreId && submenuNamesConflict(submenu.nome, nome)) {
