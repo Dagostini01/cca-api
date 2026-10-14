@@ -106,3 +106,21 @@
 - Impactos: com ao menos um acesso, as rotas `/v1` exigem a ação. `GET /v1/me` e `GET /v1/usuarios/eu` ficam de fora. Auditoria e o provisionamento no Keycloak continuam de fora.
 - Migration: `prisma/migrations/20261014040000_company_permissions/migration.sql`.
 - Rollback: nova migration que remove a CHECK, o índice, a chave e a coluna `empresa_id`, e devolve o enum sem `EMPRESA`, somente se não houver linha desse tipo. Não editar a migration já aplicada. A CHECK `permissoes_um_recurso` precisa ser preservada se um `migrate dev` futuro tentar removê-la.
+
+## 012 — Auditoria
+
+- Problema: as alterações de cadastro não deixavam histórico. A tela de auditoria pede data e hora, usuário, ação e descrição.
+- Estrutura: tabela `auditorias`, só de inclusão. Guarda a ação `CRIAR` ou `ATUALIZAR`, o recurso, a descrição, a empresa e, quando existe, o usuário local com o nome daquele momento. Não guarda `sub` nem e-mail.
+- Justificativa: o protótipo mostra o histórico das alterações. Login e logout continuam no Keycloak. O cliente não corrige uma linha já gravada.
+- Impactos: criar ou atualizar um cadastro passa a gravar uma linha. A consulta exige visualizar a empresa do evento. O provisionamento no Keycloak e a importação do backup continuam de fora.
+- Migration: `prisma/migrations/20261014050000_audit_trail/migration.sql`.
+- Rollback: nova migration com `DROP TABLE auditorias`. Não editar a migration já aplicada. As CHECK de descrição e de coerência do usuário precisam ser preservadas se um `migrate dev` futuro tentar removê-las.
+
+## 013 — Provisionamento no Keycloak
+
+- Problema: o cadastro local exigia um `sub` já conhecido. A API não criava a conta no realm.
+- Estrutura: nenhuma tabela nova. `usuarios.keycloak_sub` continua recebendo o id do Keycloak. O cliente confidencial `cca-provisioner` usa service account.
+- Justificativa: o Keycloak continua dono da senha. A CCA cria a conta sem senha, com a ação `UPDATE_PASSWORD`, ou liga um `sub` que já existe.
+- Impactos: `POST /v1/usuarios` sem `keycloakSub` cria o usuário no realm. Com `keycloakSub`, só liga se ele existir. `PATCH` de nome, e-mail ou status atualiza a mesma conta. A importação do backup continua de fora.
+- Migration: não há.
+- Rollback: remover o cliente `cca-provisioner` no realm e voltar a exigir `keycloakSub` na criação. Não há DDL para desfazer.

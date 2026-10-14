@@ -11,9 +11,10 @@
 - Telas de referência: `docs/architecture/ui-prototype.md`.
 - Para sistemas consumidores: OIDC Authorization Code + PKCE; configuração de cliente e audiência no Keycloak.
 - Cadastro: Empresa → Sistema → Módulo → Menu → Submenu, com pai obrigatório. Ver ADR-002.
-- Usuário de negócio: nome, e-mail, empresa e `sub` do Keycloak. Sem senha, RG ou CPF. `/v1/me` continua só com as claims do token.
+- Usuário de negócio: nome, e-mail, empresa e `sub` do Keycloak. Sem senha, RG ou CPF. Sem `sub` no corpo, a API cria a conta no realm e guarda o id. `/v1/me` continua só com as claims do token.
 - Perfil de acesso: nome, descrição e status, obrigatoriamente de uma empresa.
 - Permissão: visualizar, criar, editar e excluir sobre a empresa ou sobre um sistema, módulo, menu ou submenu da mesma empresa do perfil.
 - Acesso: usuário, perfil e sistema da mesma empresa. Com ao menos um acesso gravado, as rotas exigem a ação do perfil sobre o recurso. Sem nenhum acesso, qualquer token válido segue. `GET /v1/me` continua só com as claims.
 - Segurança: a autorização efetiva está nas rotas, por recurso e ação. A permissão não herda do pai para o filho.
+- Auditoria: histórico imutável de criação e atualização, com data, usuário local, ação e descrição. Login continua no Keycloak.
 - Desenvolvimento: Keycloak `start-dev` somente local; o realm `cca` é provisionado por `infra/keycloak/configure-realm.sh`. Endurecer configurações para produção.

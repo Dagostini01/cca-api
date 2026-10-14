@@ -13,6 +13,10 @@ if [ -z "${CCA_DEV_USER:-}" ] || [ -z "${CCA_DEV_USER_PASSWORD:-}" ]; then
   echo "CCA_DEV_USER and CCA_DEV_USER_PASSWORD are required" >&2
   exit 1
 fi
+if [ -z "${KEYCLOAK_PROVISIONER_CLIENT_SECRET:-}" ]; then
+  echo "KEYCLOAK_PROVISIONER_CLIENT_SECRET is required" >&2
+  exit 1
+fi
 
 "${KCADM[@]}" config credentials \
   --server "$SERVER" \
@@ -28,14 +32,16 @@ if ! "${KCADM[@]}" get "realms/${REALM}" >/dev/null 2>&1; then
     -s sslRequired=NONE \
     -s registrationAllowed=false \
     -s resetPasswordAllowed=true \
-    -s loginWithEmailAllowed=true
+    -s loginWithEmailAllowed=true \
+    -s editUsernameAllowed=true
 fi
 
 "${KCADM[@]}" update "realms/${REALM}" \
   -s sslRequired=NONE \
   -s registrationAllowed=false \
   -s resetPasswordAllowed=true \
-  -s loginWithEmailAllowed=true
+  -s loginWithEmailAllowed=true \
+  -s editUsernameAllowed=true
 
 client_uuid() {
   local output line uuid=""
@@ -99,6 +105,27 @@ if ! "${KCADM[@]}" get "clients/${web_id}/protocol-mappers/models" -r "$REALM" |
     -s 'config."id.token.claim"=false' >/dev/null
 fi
 
+provisioner_id="$(ensure_client cca-provisioner \
+  -s enabled=true \
+  -s protocol=openid-connect \
+  -s publicClient=false \
+  -s clientAuthenticatorType=client-secret \
+  -s "secret=${KEYCLOAK_PROVISIONER_CLIENT_SECRET}" \
+  -s standardFlowEnabled=false \
+  -s implicitFlowEnabled=false \
+  -s directAccessGrantsEnabled=false \
+  -s serviceAccountsEnabled=true)"
+
+sa_user="service-account-cca-provisioner"
+for _ in 1 2 3 4 5; do
+  if "${KCADM[@]}" get users -r "$REALM" -q "username=${sa_user}" --fields username --format csv --noquotes | grep -q "$sa_user"; then
+    break
+  fi
+  sleep 1
+done
+
+"${KCADM[@]}" add-roles -r "$REALM" --uusername "$sa_user" --cclientid realm-management --rolename manage-users --rolename view-users --rolename query-users
+
 user_output="$("${KCADM[@]}" get users -r "$REALM" -q "username=${CCA_DEV_USER}" --fields id --format csv --noquotes || true)"
 user_output="${user_output//$'\r'/}"
 user_id=""
@@ -120,4 +147,4 @@ fi
 
 "${KCADM[@]}" set-password -r "$REALM" --username "$CCA_DEV_USER" --new-password "$CCA_DEV_USER_PASSWORD" >/dev/null
 
-echo "Realm ${REALM} ready. Clients: cca-web (${web_id}), cca-api (${api_id}). Dev user: ${CCA_DEV_USER}."
+echo "Realm ${REALM} ready. Clients: cca-web (${web_id}), cca-api (${api_id}), cca-provisioner (${provisioner_id}). Dev user: ${CCA_DEV_USER}."

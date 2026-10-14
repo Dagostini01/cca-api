@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -11,12 +13,14 @@ export function registerSystemRoutes(
   services: SystemServices,
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
+  audits?: AuditRecorder,
 ) {
   app.post('/v1/sistemas', async (request, reply) => {
     const actor = await requireUser(request, getCurrentUser);
     const body = createSystemBodySchema.parse(request.body);
     await authorize(authorizer, actor.id, 'criar', { tipo: 'EMPRESA', id: body.empresaId });
     const system = await services.createSystem.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'SISTEMA', recursoId: system.id, descricao: system.nome });
     return reply.code(201).send(system);
   });
 
@@ -44,6 +48,8 @@ export function registerSystemRoutes(
     if (body.empresaId && body.empresaId !== system.empresaId) {
       await authorize(authorizer, actor.id, 'editar', { tipo: 'EMPRESA', id: body.empresaId });
     }
-    return services.updateSystem.execute(params.id, body);
+    const updated = await services.updateSystem.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'SISTEMA', recursoId: updated.id, descricao: updated.nome });
+    return updated;
   });
 }

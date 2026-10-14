@@ -56,6 +56,30 @@ export class UserSubjectConflictError extends DomainError {
   }
 }
 
+export class IdentityEmailConflictError extends DomainError {
+  readonly code = 'identity_email_conflict';
+
+  constructor() {
+    super('identity_email_conflict');
+  }
+}
+
+export class IdentitySubjectNotFoundError extends DomainError {
+  readonly code = 'identity_subject_not_found';
+
+  constructor() {
+    super('identity_subject_not_found');
+  }
+}
+
+export class IdentityDirectoryUnavailableError extends DomainError {
+  readonly code = 'identity_directory_unavailable';
+
+  constructor() {
+    super('identity_directory_unavailable');
+  }
+}
+
 export class UserCompanyNotFoundError extends DomainError {
   readonly code = 'company_not_found';
 

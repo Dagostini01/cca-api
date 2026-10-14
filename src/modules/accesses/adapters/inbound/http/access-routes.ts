@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { AccessSystemNotFoundError, AccessUserNotFoundError } from '../../../domain/access-errors.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
@@ -15,6 +17,7 @@ export function registerAccessRoutes(
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
   parties?: { users: UserRepository; systems: SystemRepository },
+  audits?: AuditRecorder,
 ) {
   async function companyOfSystem(sistemaId: string) {
     const system = await parties?.systems.findById(sistemaId);
@@ -35,6 +38,7 @@ export function registerAccessRoutes(
       }
     }
     const access = await services.createAccess.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'ACESSO', recursoId: access.id, descricao: 'acesso' });
     return reply.code(201).send(access);
   });
 
@@ -67,6 +71,8 @@ export function registerAccessRoutes(
     const body = updateAccessBodySchema.parse(request.body);
     const access = await services.getAccess.execute(params.id);
     if (authorizer) await authorize(authorizer, actor.id, 'editar', { tipo: 'EMPRESA', id: await companyOfSystem(access.sistemaId) });
-    return services.updateAccess.execute(params.id, body);
+    const updated = await services.updateAccess.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'ACESSO', recursoId: updated.id, descricao: 'acesso' });
+    return updated;
   });
 }

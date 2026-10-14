@@ -1,3 +1,4 @@
+import type { IdentityDirectory } from '../ports/identity-directory.js';
 import type { ParentCompanyLookup } from '../ports/parent-company-lookup.js';
 import type { UserRepository } from '../ports/user-repository.js';
 import { CreateUser } from '../use-cases/create-user.js';
@@ -14,12 +15,12 @@ export type UserServices = {
   updateUser: UpdateUser;
 };
 
-export function createUserServices(users: UserRepository, companies: ParentCompanyLookup): UserServices {
+export function createUserServices(users: UserRepository, companies: ParentCompanyLookup, directory?: IdentityDirectory): UserServices {
   return {
-    createUser: new CreateUser(users, companies),
+    createUser: new CreateUser(users, companies, directory),
     listUsers: new ListUsers(users),
     getUser: new GetUser(users),
     getUserBySubject: new GetUserBySubject(users),
-    updateUser: new UpdateUser(users, companies),
+    updateUser: new UpdateUser(users, companies, directory),
   };
 }

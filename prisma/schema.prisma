@@ -25,6 +25,7 @@ model Empresa {
   usuarios     Usuario[]
   perfis       Perfil[]
   permissoes   Permissao[]
+  auditorias   Auditoria[]
 
   @@map("empresas")
 }
@@ -101,6 +102,7 @@ model Usuario {
   criadoEm     DateTime       @default(now()) @map("criado_em")
   atualizadoEm DateTime       @updatedAt @map("atualizado_em")
   acessos      Acesso[]
+  auditorias   Auditoria[]
 
   @@map("usuarios")
 }
@@ -174,4 +176,39 @@ model Acesso {
 
   @@unique([usuarioId, sistemaId])
   @@map("acessos")
+}
+
+enum AcaoAuditoria {
+  CRIAR
+  ATUALIZAR
+}
+
+enum RecursoAuditoria {
+  EMPRESA
+  SISTEMA
+  MODULO
+  MENU
+  SUBMENU
+  USUARIO
+  PERFIL
+  PERMISSAO
+  ACESSO
+}
+
+model Auditoria {
+  id           String            @id @default(uuid()) @db.Char(36)
+  ocorridoEm   DateTime          @default(now()) @map("ocorrido_em")
+  usuarioId    String?           @map("usuario_id") @db.Char(36)
+  usuario      Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  usuarioNome  String?           @map("usuario_nome") @db.VarChar(128)
+  acao         AcaoAuditoria
+  recursoTipo  RecursoAuditoria  @map("recurso_tipo")
+  recursoId    String            @map("recurso_id") @db.Char(36)
+  descricao    String            @db.VarChar(512)
+  empresaId    String            @map("empresa_id") @db.Char(36)
+  empresa      Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([empresaId, ocorridoEm])
+  @@index([usuarioId])
+  @@map("auditorias")
 }

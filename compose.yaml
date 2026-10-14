@@ -64,6 +64,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       CCA_DEV_USER: ${CCA_DEV_USER:-dev.user}
       CCA_DEV_USER_PASSWORD: ${CCA_DEV_USER_PASSWORD}
+      KEYCLOAK_PROVISIONER_CLIENT_SECRET: ${KEYCLOAK_PROVISIONER_CLIENT_SECRET:?KEYCLOAK_PROVISIONER_CLIENT_SECRET is required}
     volumes:
       - ./infra/keycloak/configure-realm.sh:/configure-realm.sh:ro
     entrypoint: ["/bin/bash", "/configure-realm.sh"]
@@ -77,6 +78,7 @@ services:
       PORT: 3000
       NODE_ENV: production
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/cca/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}

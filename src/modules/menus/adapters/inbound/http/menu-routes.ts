@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -11,12 +13,14 @@ export function registerMenuRoutes(
   services: MenuServices,
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
+  audits?: AuditRecorder,
 ) {
   app.post('/v1/menus', async (request, reply) => {
     const actor = await requireUser(request, getCurrentUser);
     const body = createMenuBodySchema.parse(request.body);
     await authorize(authorizer, actor.id, 'criar', { tipo: 'MODULO', id: body.moduloId });
     const menu = await services.createMenu.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'MENU', recursoId: menu.id, descricao: menu.nome });
     return reply.code(201).send(menu);
   });
 
@@ -44,6 +48,8 @@ export function registerMenuRoutes(
     if (body.moduloId && body.moduloId !== menu.moduloId) {
       await authorize(authorizer, actor.id, 'criar', { tipo: 'MODULO', id: body.moduloId });
     }
-    return services.updateMenu.execute(params.id, body);
+    const updated = await services.updateMenu.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'MENU', recursoId: updated.id, descricao: updated.nome });
+    return updated;
   });
 }

@@ -20,6 +20,7 @@ import { registerMenuRoutes } from './modules/menus/adapters/inbound/http/menu-r
 import type { SubmenuRepository } from './modules/submenus/application/ports/submenu-repository.js';
 import { createSubmenuServices } from './modules/submenus/application/factories/submenu-services-factory.js';
 import { registerSubmenuRoutes } from './modules/submenus/adapters/inbound/http/submenu-routes.js';
+import type { IdentityDirectory } from './modules/users/application/ports/identity-directory.js';
 import type { UserRepository } from './modules/users/application/ports/user-repository.js';
 import { createUserServices } from './modules/users/application/factories/user-services-factory.js';
 import { registerUserRoutes } from './modules/users/adapters/inbound/http/user-routes.js';
@@ -34,6 +35,10 @@ import type { AccessRepository } from './modules/accesses/application/ports/acce
 import { createAccessServices } from './modules/accesses/application/factories/access-services-factory.js';
 import { registerAccessRoutes } from './modules/accesses/adapters/inbound/http/access-routes.js';
 import type { Authorizer } from './modules/authorization/application/ports/authorizer.js';
+import type { AuditRecorder } from './modules/audits/application/ports/audit-recorder.js';
+import type { AuditRepository } from './modules/audits/application/ports/audit-repository.js';
+import { createAuditServices } from './modules/audits/application/factories/audit-services-factory.js';
+import { registerAuditRoutes } from './modules/audits/adapters/inbound/http/audit-routes.js';
 
 export type BuildAppOptions = {
   tokenVerifier?: TokenVerifier;
@@ -43,11 +48,14 @@ export type BuildAppOptions = {
   menuRepository?: MenuRepository;
   submenuRepository?: SubmenuRepository;
   userRepository?: UserRepository;
+  identityDirectory?: IdentityDirectory;
   profileRepository?: ProfileRepository;
   permissionRepository?: PermissionRepository;
   chainResourceLookup?: ChainResourceLookup;
   accessRepository?: AccessRepository;
   authorizer?: Authorizer;
+  auditRepository?: AuditRepository;
+  auditRecorder?: AuditRecorder;
   logger?: boolean;
 };
 
@@ -59,26 +67,27 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
   app.get('/health', async () => ({ status: 'ok', service: 'cca-api' }));
   registerIdentityRoutes(app, getCurrentUser);
   const authorizer = options.authorizer;
+  const audits = options.auditRecorder;
   if (options.companyRepository) {
-    registerCompanyRoutes(app, createCompanyServices(options.companyRepository), getCurrentUser, authorizer);
+    registerCompanyRoutes(app, createCompanyServices(options.companyRepository), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.systemRepository) {
-    registerSystemRoutes(app, createSystemServices(options.systemRepository, options.companyRepository), getCurrentUser, authorizer);
+    registerSystemRoutes(app, createSystemServices(options.systemRepository, options.companyRepository), getCurrentUser, authorizer, audits);
   }
   if (options.systemRepository && options.moduleRepository) {
-    registerModuleRoutes(app, createModuleServices(options.moduleRepository, options.systemRepository), getCurrentUser, authorizer);
+    registerModuleRoutes(app, createModuleServices(options.moduleRepository, options.systemRepository), getCurrentUser, authorizer, audits);
   }
   if (options.moduleRepository && options.menuRepository) {
-    registerMenuRoutes(app, createMenuServices(options.menuRepository, options.moduleRepository), getCurrentUser, authorizer);
+    registerMenuRoutes(app, createMenuServices(options.menuRepository, options.moduleRepository), getCurrentUser, authorizer, audits);
   }
   if (options.menuRepository && options.submenuRepository) {
-    registerSubmenuRoutes(app, createSubmenuServices(options.submenuRepository, options.menuRepository), getCurrentUser, authorizer);
+    registerSubmenuRoutes(app, createSubmenuServices(options.submenuRepository, options.menuRepository), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.userRepository) {
-    registerUserRoutes(app, createUserServices(options.userRepository, options.companyRepository), getCurrentUser, authorizer);
+    registerUserRoutes(app, createUserServices(options.userRepository, options.companyRepository, options.identityDirectory), getCurrentUser, authorizer, audits);
   }
   if (options.companyRepository && options.profileRepository) {
-    registerProfileRoutes(app, createProfileServices(options.profileRepository, options.companyRepository), getCurrentUser, authorizer);
+    registerProfileRoutes(app, createProfileServices(options.profileRepository, options.companyRepository), getCurrentUser, authorizer, audits);
   }
   if (options.profileRepository && options.permissionRepository && options.chainResourceLookup) {
     registerPermissionRoutes(
@@ -87,6 +96,7 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
       getCurrentUser,
       authorizer,
       options.profileRepository,
+      audits,
     );
   }
   if (options.userRepository && options.profileRepository && options.systemRepository && options.accessRepository) {
@@ -96,7 +106,11 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
       getCurrentUser,
       authorizer,
       { users: options.userRepository, systems: options.systemRepository },
+      audits,
     );
+  }
+  if (options.auditRepository) {
+    registerAuditRoutes(app, createAuditServices(options.auditRepository), getCurrentUser, authorizer);
   }
   registerApiReference(app);
   return app;

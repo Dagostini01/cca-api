@@ -6,7 +6,7 @@ const userStatusSchema = z.enum(['ATIVO', 'INATIVO']);
 export const createUserBodySchema = z.object({
   nome: z.string().trim().min(1).max(USER_NAME_MAX_LENGTH),
   email: z.string().trim().email().max(USER_EMAIL_MAX_LENGTH),
-  keycloakSub: z.string().uuid(),
+  keycloakSub: z.string().uuid().optional(),
   empresaId: z.string().uuid(),
   status: userStatusSchema.optional(),
 }).strict();

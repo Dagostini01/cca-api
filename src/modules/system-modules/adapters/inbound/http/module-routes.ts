@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -11,12 +13,14 @@ export function registerModuleRoutes(
   services: ModuleServices,
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
+  audits?: AuditRecorder,
 ) {
   app.post('/v1/modulos', async (request, reply) => {
     const actor = await requireUser(request, getCurrentUser);
     const body = createModuleBodySchema.parse(request.body);
     await authorize(authorizer, actor.id, 'criar', { tipo: 'SISTEMA', id: body.sistemaId });
     const module = await services.createModule.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'MODULO', recursoId: module.id, descricao: module.nome });
     return reply.code(201).send(module);
   });
 
@@ -44,6 +48,8 @@ export function registerModuleRoutes(
     if (body.sistemaId && body.sistemaId !== module.sistemaId) {
       await authorize(authorizer, actor.id, 'criar', { tipo: 'SISTEMA', id: body.sistemaId });
     }
-    return services.updateModule.execute(params.id, body);
+    const updated = await services.updateModule.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'MODULO', recursoId: updated.id, descricao: updated.nome });
+    return updated;
   });
 }

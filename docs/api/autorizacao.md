@@ -46,6 +46,7 @@ Listas devolvem só o que o chamador pode visualizar. Sem nenhum item visível, 
 | `POST /v1/menus` | `criar` no `MODULO` pai |
 | `POST /v1/submenus` | `criar` no `MENU` pai |
 | `POST`, `GET` e `PATCH` de usuários, perfis, permissões e acessos | `criar`, `visualizar` ou `editar` na `EMPRESA` dona do cadastro |
+| `GET /v1/auditorias` | `visualizar` na `EMPRESA` de cada evento. A lista omite o resto |
 
 Mover um usuário ou um perfil para outra empresa exige `editar` na empresa atual e na empresa de destino. Mover um sistema exige `editar` no sistema e `editar` na empresa de destino. Mover módulo, menu ou submenu exige `editar` no nó e `criar` no novo pai.
 

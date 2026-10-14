@@ -61,8 +61,10 @@ describe('Scalar API reference', () => {
       expect.arrayContaining(['nome', 'menuId']),
     );
     expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.required).toEqual(
-      expect.arrayContaining(['nome', 'email', 'keycloakSub', 'empresaId']),
+      expect.arrayContaining(['nome', 'email', 'empresaId']),
     );
+    expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.required).not.toContain('keycloakSub');
+    expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.properties.keycloakSub).toBeTruthy();
     expect(document.paths['/v1/usuarios/eu'].get.security).toEqual([{ bearerAuth: [] }]);
     expect(document.paths['/v1/perfis'].post.requestBody.content['application/json'].schema.required).toEqual(
       expect.arrayContaining(['nome', 'empresaId']),
@@ -74,5 +76,8 @@ describe('Scalar API reference', () => {
     expect(document.paths['/v1/acessos'].post.requestBody.content['application/json'].schema.required).toEqual(
       expect.arrayContaining(['usuarioId', 'perfilId', 'sistemaId']),
     );
+    expect(document.paths['/v1/auditorias'].post).toBeUndefined();
+    expect(document.paths['/v1/auditorias'].get.responses['200']).toBeTruthy();
+    expect(document.paths['/v1/auditorias/{id}'].patch).toBeUndefined();
   });
 });

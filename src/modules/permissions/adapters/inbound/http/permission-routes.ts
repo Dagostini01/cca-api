@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -14,6 +16,7 @@ export function registerPermissionRoutes(
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
   profiles?: ProfileRepository,
+  audits?: AuditRecorder,
 ) {
   async function companyOf(perfilId: string) {
     const profile = await profiles?.findById(perfilId);
@@ -26,6 +29,7 @@ export function registerPermissionRoutes(
     const body = createPermissionBodySchema.parse(request.body);
     if (authorizer) await authorize(authorizer, actor.id, 'criar', { tipo: 'EMPRESA', id: await companyOf(body.perfilId) });
     const permission = await services.createPermission.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'PERMISSAO', recursoId: permission.id, descricao: permission.recursoTipo });
     return reply.code(201).send(permission);
   });
 
@@ -58,6 +62,8 @@ export function registerPermissionRoutes(
     const body = updatePermissionBodySchema.parse(request.body);
     const permission = await services.getPermission.execute(params.id);
     if (authorizer) await authorize(authorizer, actor.id, 'editar', { tipo: 'EMPRESA', id: await companyOf(permission.perfilId) });
-    return services.updatePermission.execute(params.id, body);
+    const updated = await services.updatePermission.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'PERMISSAO', recursoId: updated.id, descricao: updated.recursoTipo });
+    return updated;
   });
 }

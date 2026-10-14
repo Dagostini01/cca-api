@@ -6,4 +6,4 @@ O Scalar monta a página. Os corpos, parâmetros e respostas descritos ali são 
 
 Login, senha e redefinição continuam no Keycloak. As rotas `/v1` pedem `Authorization: Bearer`.
 
-As regras de cada recurso estão em `empresas.md`, `sistemas.md`, `cadeia.md`, `usuarios.md`, `perfis.md`, `permissoes.md`, `acessos.md` e `autorizacao.md`.
+As regras de cada recurso estão em `empresas.md`, `sistemas.md`, `cadeia.md`, `usuarios.md`, `perfis.md`, `permissoes.md`, `acessos.md`, `autorizacao.md` e `auditoria.md`.

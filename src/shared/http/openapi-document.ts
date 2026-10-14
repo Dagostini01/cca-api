@@ -9,6 +9,7 @@ import { createUserBodySchema, listUsersQuerySchema, updateUserBodySchema, userI
 import { createProfileBodySchema, listProfilesQuerySchema, profileIdParamsSchema, profileResponseSchema, updateProfileBodySchema } from '../../modules/profiles/adapters/inbound/http/profile-schemas.js';
 import { createPermissionBodySchema, listPermissionsQuerySchema, permissionIdParamsSchema, permissionResponseSchema, updatePermissionBodySchema } from '../../modules/permissions/adapters/inbound/http/permission-schemas.js';
 import { accessIdParamsSchema, accessResponseSchema, createAccessBodySchema, listAccessesQuerySchema, updateAccessBodySchema } from '../../modules/accesses/adapters/inbound/http/access-schemas.js';
+import { auditIdParamsSchema, auditResponseSchema, listAuditsQuerySchema } from '../../modules/audits/adapters/inbound/http/audit-schemas.js';
 
 const errorSchema = z.object({
   error: z.string(),
@@ -340,7 +341,7 @@ export function createOpenApiDocument() {
     path: '/v1/usuarios',
     tags: ['Usuários'],
     summary: 'Cria um usuário de negócio',
-    description: 'Liga o cadastro ao sub do Keycloak. Não grava senha, RG nem CPF. A empresa precisa existir. O e-mail é único e fica em minúsculas.',
+    description: 'Sem keycloakSub, a API cria o usuário no Keycloak e guarda o id devolvido. Com keycloakSub, liga um usuário que já existe no realm. Não grava senha. A conta nova exige UPDATE_PASSWORD no Keycloak. A empresa precisa existir. O e-mail é único e fica em minúsculas.',
     security: bearerAuth,
     request: { body: { required: true, content: json(createUserBodySchema) } },
     responses: {
@@ -348,9 +349,9 @@ export function createOpenApiDocument() {
       400: { description: 'validation_error', content: json(validationErrorSchema) },
       401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
       403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'company_not_found', content: json(errorSchema) },
-      409: { description: 'user_email_conflict ou user_subject_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+      404: { description: 'company_not_found ou identity_subject_not_found', content: json(errorSchema) },
+      409: { description: 'user_email_conflict, user_subject_conflict ou identity_email_conflict', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
     },
   });
   registry.registerPath({
@@ -404,7 +405,7 @@ export function createOpenApiDocument() {
     path: '/v1/usuarios/{id}',
     tags: ['Usuários'],
     summary: 'Atualiza um usuário',
-    description: 'Informe ao menos um campo entre nome, email, empresaId e status. keycloakSub não muda. Não há exclusão física.',
+    description: 'Informe ao menos um campo entre nome, email, empresaId e status. keycloakSub não muda. Nome, e-mail e status também atualizam o usuário no Keycloak. Não há exclusão física.',
     security: bearerAuth,
     request: {
       params: userIdParamsSchema,
@@ -415,9 +416,9 @@ export function createOpenApiDocument() {
       400: { description: 'validation_error', content: json(validationErrorSchema) },
       401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
       403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'user_not_found ou company_not_found', content: json(errorSchema) },
-      409: { description: 'user_email_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+      404: { description: 'user_not_found, company_not_found ou identity_subject_not_found', content: json(errorSchema) },
+      409: { description: 'user_email_conflict ou identity_email_conflict', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -567,7 +568,7 @@ export function createOpenApiDocument() {
     path: '/v1/acessos',
     tags: ['Acessos'],
     summary: 'Liga um usuário a um perfil em um sistema',
-    description: 'Usuário, perfil e sistema precisam ser da mesma empresa. O par usuário + sistema é único. Esta rota ainda não autoriza as demais.',
+    description: 'Usuário, perfil e sistema precisam ser da mesma empresa. O par usuário + sistema é único. O primeiro acesso ativo liga a autorização das demais rotas.',
     security: bearerAuth,
     request: { body: { required: true, content: json(createAccessBodySchema) } },
     responses: {
@@ -629,6 +630,39 @@ export function createOpenApiDocument() {
       403: { description: 'forbidden', content: json(errorSchema) },
       404: { description: 'access_not_found, user_not_found, profile_not_found ou system_not_found', content: json(errorSchema) },
       409: { description: 'access_company_mismatch', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/auditorias',
+    tags: ['Auditoria'],
+    summary: 'Lista o histórico de alterações',
+    description: 'Mais recente primeiro. desde e ate filtram ocorridoEm. A lista fica restrita às empresas que o chamador pode visualizar. Não há criação manual nem alteração do histórico.',
+    security: bearerAuth,
+    request: { query: listAuditsQuerySchema },
+    responses: {
+      200: { description: 'Eventos visíveis para o chamador', content: json(z.array(auditResponseSchema)) },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/auditorias/{id}',
+    tags: ['Auditoria'],
+    summary: 'Consulta um evento de auditoria',
+    security: bearerAuth,
+    request: { params: auditIdParamsSchema },
+    responses: {
+      200: { description: 'Evento encontrado', content: json(auditResponseSchema) },
+      400: { description: 'validation_error', content: json(validationErrorSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      404: { description: 'audit_not_found', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });

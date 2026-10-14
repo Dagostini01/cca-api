@@ -35,6 +35,9 @@ const statusByCode: Record<string, number> = {
   user_not_found: 404,
   user_email_conflict: 409,
   user_subject_conflict: 409,
+  identity_email_conflict: 409,
+  identity_subject_not_found: 404,
+  identity_directory_unavailable: 503,
   invalid_profile_name: 400,
   invalid_profile_description: 400,
   empty_profile_update: 400,
@@ -50,6 +53,8 @@ const statusByCode: Record<string, number> = {
   access_not_found: 404,
   access_conflict: 409,
   access_company_mismatch: 409,
+  invalid_audit_description: 400,
+  audit_not_found: 404,
 };
 
 function issueSummary(issue: ZodIssue) {

@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -11,12 +13,14 @@ export function registerSubmenuRoutes(
   services: SubmenuServices,
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
+  audits?: AuditRecorder,
 ) {
   app.post('/v1/submenus', async (request, reply) => {
     const actor = await requireUser(request, getCurrentUser);
     const body = createSubmenuBodySchema.parse(request.body);
     await authorize(authorizer, actor.id, 'criar', { tipo: 'MENU', id: body.menuId });
     const submenu = await services.createSubmenu.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'SUBMENU', recursoId: submenu.id, descricao: submenu.nome });
     return reply.code(201).send(submenu);
   });
 
@@ -44,6 +48,8 @@ export function registerSubmenuRoutes(
     if (body.menuId && body.menuId !== submenu.menuId) {
       await authorize(authorizer, actor.id, 'criar', { tipo: 'MENU', id: body.menuId });
     }
-    return services.updateSubmenu.execute(params.id, body);
+    const updated = await services.updateSubmenu.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'SUBMENU', recursoId: updated.id, descricao: updated.nome });
+    return updated;
   });
 }

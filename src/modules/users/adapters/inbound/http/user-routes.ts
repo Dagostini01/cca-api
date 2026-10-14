@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { recordChange } from '../../../../audits/adapters/inbound/http/record-change.js';
+import type { AuditRecorder } from '../../../../audits/application/ports/audit-recorder.js';
 import { authorize, onlyVisible } from '../../../../authorization/adapters/inbound/http/authorize-request.js';
 import type { Authorizer } from '../../../../authorization/application/ports/authorizer.js';
 import { requireUser } from '../../../../identity/adapters/inbound/http/require-user.js';
@@ -11,12 +13,14 @@ export function registerUserRoutes(
   services: UserServices,
   getCurrentUser: GetCurrentUser,
   authorizer?: Authorizer,
+  audits?: AuditRecorder,
 ) {
   app.post('/v1/usuarios', async (request, reply) => {
     const actor = await requireUser(request, getCurrentUser);
     const body = createUserBodySchema.parse(request.body);
     await authorize(authorizer, actor.id, 'criar', { tipo: 'EMPRESA', id: body.empresaId });
     const user = await services.createUser.execute(body);
+    await recordChange(audits, actor.id, { acao: 'CRIAR', recursoTipo: 'USUARIO', recursoId: user.id, descricao: user.nome });
     return reply.code(201).send(user);
   });
 
@@ -49,6 +53,8 @@ export function registerUserRoutes(
     if (body.empresaId && body.empresaId !== user.empresaId) {
       await authorize(authorizer, actor.id, 'editar', { tipo: 'EMPRESA', id: body.empresaId });
     }
-    return services.updateUser.execute(params.id, body);
+    const updated = await services.updateUser.execute(params.id, body);
+    await recordChange(audits, actor.id, { acao: 'ATUALIZAR', recursoTipo: 'USUARIO', recursoId: updated.id, descricao: updated.nome });
+    return updated;
   });
 }
