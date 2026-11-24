@@ -1,14 +1,12 @@
 import { extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV31 } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
-import { companyIdParamsSchema, companyResponseSchema, createCompanyBodySchema, updateCompanyBodySchema } from '../../modules/companies/adapters/inbound/http/company-schemas.js';
-import { createSystemBodySchema, listSystemsQuerySchema, systemIdParamsSchema, systemResponseSchema, updateSystemBodySchema } from '../../modules/systems/adapters/inbound/http/system-schemas.js';
+import { companyIdParamsSchema, companyListQuerySchema, companyResponseSchema, createCompanyBodySchema, updateCompanyBodySchema } from '../../modules/companies/adapters/inbound/http/company-schemas.js';
+import { createSystemBodySchema, systemIdParamsSchema, systemListQuerySchema, systemResponseSchema, updateSystemBodySchema } from '../../modules/systems/adapters/inbound/http/system-schemas.js';
 import { createModuleBodySchema, listModulesQuerySchema, moduleIdParamsSchema, moduleResponseSchema, updateModuleBodySchema } from '../../modules/system-modules/adapters/inbound/http/module-schemas.js';
 import { createMenuBodySchema, listMenusQuerySchema, menuIdParamsSchema, menuResponseSchema, updateMenuBodySchema } from '../../modules/menus/adapters/inbound/http/menu-schemas.js';
 import { createSubmenuBodySchema, listSubmenusQuerySchema, submenuIdParamsSchema, submenuResponseSchema, updateSubmenuBodySchema } from '../../modules/submenus/adapters/inbound/http/submenu-schemas.js';
-import { createUserBodySchema, listUsersQuerySchema, updateUserBodySchema, userIdParamsSchema, userResponseSchema } from '../../modules/users/adapters/inbound/http/user-schemas.js';
-import { createProfileBodySchema, listProfilesQuerySchema, profileIdParamsSchema, profileResponseSchema, updateProfileBodySchema } from '../../modules/profiles/adapters/inbound/http/profile-schemas.js';
-import { createPermissionBodySchema, listPermissionsQuerySchema, permissionIdParamsSchema, permissionResponseSchema, updatePermissionBodySchema } from '../../modules/permissions/adapters/inbound/http/permission-schemas.js';
-import { accessIdParamsSchema, accessResponseSchema, createAccessBodySchema, listAccessesQuerySchema, updateAccessBodySchema } from '../../modules/accesses/adapters/inbound/http/access-schemas.js';
+import { createUserBodySchema, screenViewSchema, updateUserBodySchema, userIdParamsSchema, userListQuerySchema, userPageSchema, userResponseSchema } from '../../modules/users/adapters/inbound/http/user-schemas.js';
+import { accessIdParamsSchema, accessPageSchema, accessResponseSchema, createAccessBodySchema, listAccessesQuerySchema, updateAccessBodySchema } from '../../modules/accesses/adapters/inbound/http/access-schemas.js';
 import { auditIdParamsSchema, auditResponseSchema, listAuditsQuerySchema } from '../../modules/audits/adapters/inbound/http/audit-schemas.js';
 import { importLegacyBodySchema, legacyImportReportSchema } from '../../modules/legacy-import/adapters/inbound/http/legacy-import-schemas.js';
 
@@ -71,7 +69,7 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
     path: resource.collectionPath,
     tags: [resource.tag],
     summary: `Cria um ${resource.noun} ligado ao ${resource.parentField}`,
-    description: `O pai é obrigatório e precisa existir. O nome é único dentro do ${resource.parentField}. Sem status, o padrão é ATIVO.`,
+    description: `O pai é obrigatório e precisa existir. O nome é único dentro do ${resource.parentField}. Sem status, o padrão é ATIVADO. Exige administrador.`,
     security: bearerAuth,
     request: { body: { required: true, content: json(resource.createBody) } },
     responses: {
@@ -87,7 +85,7 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
     path: resource.collectionPath,
     tags: [resource.tag],
     summary: `Lista ${resource.tag.toLowerCase()}`,
-    description: `Devolve os registros que o chamador pode visualizar. O parâmetro de query restringe ao ${resource.parentField}. Sem nenhum acesso gravado, a lista não é filtrada.`,
+    description: `Catálogo global para o administrador. O parâmetro do ${resource.parentField} restringe o pai. q procura no nome, na descrição e na cadeia acima. Com pagina, a resposta é uma página.`,
     security: bearerAuth,
     request: { query: resource.query },
     responses: {
@@ -134,7 +132,7 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
     path: itemPath,
     tags: [resource.tag],
     summary: `Exclui um ${resource.noun}`,
-    description: 'A exclusão remove o registro quando ele não tem filhos nem permissão apontando para ele. Com vínculo, a resposta é 409 delete_restricted e nada é apagado. A ação exige excluir.',
+    description: 'A exclusão remove o registro quando ele não tem filhos nem tela apontando para ele. Com vínculo, a resposta é 409 delete_restricted.',
     security: bearerAuth,
     request: { params: resource.params },
     responses: {
@@ -145,6 +143,13 @@ function registerOwnedResource(registry: OpenAPIRegistry, resource: {
     },
   });
 }
+
+const authErrors = {
+  400: { description: 'validation_error', content: json(validationErrorSchema) },
+  401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+  403: { description: 'forbidden', content: json(errorSchema) },
+  503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+};
 
 export function createOpenApiDocument() {
   extendZodWithOpenApi(z);
@@ -184,16 +189,13 @@ export function createOpenApiDocument() {
     path: '/v1/empresas',
     tags: ['Empresas'],
     summary: 'Cria uma empresa',
-    description: 'CNPJ é opcional. Quando informado, a API valida os dígitos e grava somente os 14 números. Sem status, o padrão é ATIVO.',
+    description: 'CNPJ é opcional. Quando informado, a API valida os dígitos e grava somente os 14 números. Sem status, o padrão é ATIVADO. Exige administrador.',
     security: bearerAuth,
     request: { body: { required: true, content: json(createCompanyBodySchema) } },
     responses: {
       201: { description: 'Empresa criada', content: json(companyResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       409: { description: 'company_document_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -201,10 +203,12 @@ export function createOpenApiDocument() {
     method: 'get',
     path: '/v1/empresas',
     tags: ['Empresas'],
-    summary: 'Lista empresas por nome',
+    summary: 'Lista empresas',
+    description: 'Sem pagina, devolve a lista inteira. q filtra razão social, nome fantasia, CNPJ e o sistema ligado. Com pagina, a resposta traz itens, total, pagina e tamanho.',
     security: bearerAuth,
+    request: { query: companyListQuerySchema },
     responses: {
-      200: { description: 'Empresas ordenadas por nome', content: json(z.array(companyResponseSchema)) },
+      200: { description: 'Empresas ordenadas por razão social', content: json(z.array(companyResponseSchema)) },
       401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
       403: { description: 'forbidden', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
@@ -220,11 +224,8 @@ export function createOpenApiDocument() {
     request: { params: companyIdParamsSchema },
     responses: {
       200: { description: 'Empresa encontrada', content: json(companyResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'company_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -235,18 +236,12 @@ export function createOpenApiDocument() {
     summary: 'Atualiza uma empresa',
     description: 'Informe ao menos um campo. cnpj nulo remove o documento. A exclusão é a rota DELETE.',
     security: bearerAuth,
-    request: {
-      params: companyIdParamsSchema,
-      body: { required: true, content: json(updateCompanyBodySchema) },
-    },
+    request: { params: companyIdParamsSchema, body: { required: true, content: json(updateCompanyBodySchema) } },
     responses: {
       200: { description: 'Empresa atualizada', content: json(companyResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'company_not_found', content: json(errorSchema) },
       409: { description: 'company_document_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -255,17 +250,14 @@ export function createOpenApiDocument() {
     path: '/v1/empresas/{id}',
     tags: ['Empresas'],
     summary: 'Exclui uma empresa',
-    description: 'Remove a empresa quando ela não tem sistema, usuário, perfil nem permissão. O histórico dessa empresa sai junto e não gera um evento EXCLUIR. Com vínculo, a resposta é 409 delete_restricted.',
+    description: 'Remove a empresa quando ela não tem endereço, contato nem tela. Com vínculo, a resposta é 409 delete_restricted.',
     security: bearerAuth,
     request: { params: companyIdParamsSchema },
     responses: {
       204: { description: 'Empresa excluída' },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'company_not_found', content: json(errorSchema) },
       409: { description: 'delete_restricted', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -273,18 +265,15 @@ export function createOpenApiDocument() {
     method: 'post',
     path: '/v1/sistemas',
     tags: ['Sistemas'],
-    summary: 'Cria um sistema ligado a uma empresa',
-    description: 'empresaId é obrigatório e precisa apontar para uma empresa existente. O nome é único dentro da empresa. Sem status, o padrão é ATIVO.',
+    summary: 'Cria um sistema',
+    description: 'O nome é único no catálogo. empresaIds é obrigatório e liga o sistema às empresas donas; só essas empresas podem receber telas dele. Sem status, o padrão é ATIVADO. Exige administrador.',
     security: bearerAuth,
     request: { body: { required: true, content: json(createSystemBodySchema) } },
     responses: {
       201: { description: 'Sistema criado', content: json(systemResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'company_not_found', content: json(errorSchema) },
       409: { description: 'system_name_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -293,12 +282,11 @@ export function createOpenApiDocument() {
     path: '/v1/sistemas',
     tags: ['Sistemas'],
     summary: 'Lista sistemas',
-    description: 'Sem filtro, devolve todos. Com empresaId, devolve somente os sistemas daquela empresa.',
+    description: 'empresaId restringe às empresas ligadas. q procura no nome, na descrição e na empresa. Com pagina, a resposta é uma página.',
     security: bearerAuth,
-    request: { query: listSystemsQuerySchema },
+    request: { query: systemListQuerySchema },
     responses: {
       200: { description: 'Sistemas ordenados por nome', content: json(z.array(systemResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
       401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
       403: { description: 'forbidden', content: json(errorSchema) },
       503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
@@ -314,11 +302,8 @@ export function createOpenApiDocument() {
     request: { params: systemIdParamsSchema },
     responses: {
       200: { description: 'Sistema encontrado', content: json(systemResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'system_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
     },
   });
 
@@ -327,20 +312,30 @@ export function createOpenApiDocument() {
     path: '/v1/sistemas/{id}',
     tags: ['Sistemas'],
     summary: 'Atualiza um sistema',
-    description: 'Informe ao menos um campo. empresaId, quando muda, precisa existir. O sistema continua obrigatoriamente ligado a uma empresa. A exclusão é a rota DELETE.',
+    description: 'Informe ao menos um campo. empresaIds substitui as empresas ligadas; tirar uma empresa que ainda tem tela desse sistema devolve 409 system_company_in_use. A exclusão é a rota DELETE.',
     security: bearerAuth,
-    request: {
-      params: systemIdParamsSchema,
-      body: { required: true, content: json(updateSystemBodySchema) },
-    },
+    request: { params: systemIdParamsSchema, body: { required: true, content: json(updateSystemBodySchema) } },
     responses: {
       200: { description: 'Sistema atualizado', content: json(systemResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
+      ...authErrors,
       404: { description: 'system_not_found ou company_not_found', content: json(errorSchema) },
-      409: { description: 'system_name_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+      409: { description: 'system_name_conflict ou system_company_in_use', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/sistemas/{id}',
+    tags: ['Sistemas'],
+    summary: 'Exclui um sistema',
+    description: 'Remove o sistema quando ele não tem módulo nem tela. Com vínculo, a resposta é 409 delete_restricted.',
+    security: bearerAuth,
+    request: { params: systemIdParamsSchema },
+    responses: {
+      204: { description: 'Sistema excluído' },
+      ...authErrors,
+      404: { description: 'system_not_found', content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
     },
   });
 
@@ -358,6 +353,7 @@ export function createOpenApiDocument() {
     query: listModulesQuerySchema,
     response: moduleResponseSchema,
   });
+
   registerOwnedResource(registry, {
     collectionPath: '/v1/menus',
     tag: 'Menus',
@@ -371,427 +367,6 @@ export function createOpenApiDocument() {
     params: menuIdParamsSchema,
     query: listMenusQuerySchema,
     response: menuResponseSchema,
-  });
-  registry.registerPath({
-    method: 'post',
-    path: '/v1/usuarios',
-    tags: ['Usuários'],
-    summary: 'Cria um usuário de negócio',
-    description: 'Sem keycloakSub, a API cria o usuário no Keycloak e guarda o id devolvido. Com keycloakSub, liga um usuário que já existe no realm. Não grava senha. A conta nova exige UPDATE_PASSWORD no Keycloak. A empresa precisa existir. O e-mail é único e fica em minúsculas.',
-    security: bearerAuth,
-    request: { body: { required: true, content: json(createUserBodySchema) } },
-    responses: {
-      201: { description: 'Usuário criado', content: json(userResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'company_not_found ou identity_subject_not_found', content: json(errorSchema) },
-      409: { description: 'user_email_conflict, user_subject_conflict ou identity_email_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/usuarios/eu',
-    tags: ['Usuários'],
-    summary: 'Consulta o usuário local do token',
-    description: 'Usa o sub autenticado. Não cria o cadastro. /v1/me continua devolvendo só as claims do token.',
-    security: bearerAuth,
-    responses: {
-      200: { description: 'Usuário encontrado', content: json(userResponseSchema) },
-      400: { description: 'invalid_user_subject quando o sub do token não é um UUID', content: json(errorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      404: { description: 'user_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/usuarios',
-    tags: ['Usuários'],
-    summary: 'Lista usuários',
-    security: bearerAuth,
-    request: { query: listUsersQuerySchema },
-    responses: {
-      200: { description: 'Usuários ordenados por nome', content: json(z.array(userResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/usuarios/{id}',
-    tags: ['Usuários'],
-    summary: 'Consulta um usuário',
-    security: bearerAuth,
-    request: { params: userIdParamsSchema },
-    responses: {
-      200: { description: 'Usuário encontrado', content: json(userResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'user_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'patch',
-    path: '/v1/usuarios/{id}',
-    tags: ['Usuários'],
-    summary: 'Atualiza um usuário',
-    description: 'Informe ao menos um campo entre nome, email, empresaId e status. keycloakSub não muda. Nome, e-mail e status também atualizam o usuário no Keycloak. A exclusão é a rota DELETE e não apaga a conta no diretório.',
-    security: bearerAuth,
-    request: {
-      params: userIdParamsSchema,
-      body: { required: true, content: json(updateUserBodySchema) },
-    },
-    responses: {
-      200: { description: 'Usuário atualizado', content: json(userResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'user_not_found, company_not_found ou identity_subject_not_found', content: json(errorSchema) },
-      409: { description: 'user_email_conflict ou identity_email_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'delete',
-    path: '/v1/usuarios/{id}',
-    tags: ['Usuários'],
-    summary: 'Exclui um usuário',
-    description: 'Remove o cadastro local quando ele não tem acesso nem evento de auditoria em que seja o autor. A conta no diretório de identidade permanece. Quem exclui a si mesmo não gera evento EXCLUIR. Com vínculo, a resposta é 409 delete_restricted.',
-    security: bearerAuth,
-    request: { params: userIdParamsSchema },
-    responses: {
-      204: { description: 'Usuário excluído' },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'user_not_found', content: json(errorSchema) },
-      409: { description: 'delete_restricted', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'post',
-    path: '/v1/perfis',
-    tags: ['Perfis'],
-    summary: 'Cria um perfil de acesso',
-    description: 'O perfil pertence a uma empresa. O nome é único dentro dela. Ainda não guarda permissões nem usuários.',
-    security: bearerAuth,
-    request: { body: { required: true, content: json(createProfileBodySchema) } },
-    responses: {
-      201: { description: 'Perfil criado', content: json(profileResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'company_not_found', content: json(errorSchema) },
-      409: { description: 'profile_name_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/perfis',
-    tags: ['Perfis'],
-    summary: 'Lista perfis',
-    security: bearerAuth,
-    request: { query: listProfilesQuerySchema },
-    responses: {
-      200: { description: 'Perfis ordenados por nome', content: json(z.array(profileResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/perfis/{id}',
-    tags: ['Perfis'],
-    summary: 'Consulta um perfil',
-    security: bearerAuth,
-    request: { params: profileIdParamsSchema },
-    responses: {
-      200: { description: 'Perfil encontrado', content: json(profileResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'profile_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'patch',
-    path: '/v1/perfis/{id}',
-    tags: ['Perfis'],
-    summary: 'Atualiza um perfil',
-    description: 'Informe ao menos um campo. descricao nula apaga o texto. empresaId, quando muda, precisa existir. A exclusão é a rota DELETE.',
-    security: bearerAuth,
-    request: {
-      params: profileIdParamsSchema,
-      body: { required: true, content: json(updateProfileBodySchema) },
-    },
-    responses: {
-      200: { description: 'Perfil atualizado', content: json(profileResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'profile_not_found ou company_not_found', content: json(errorSchema) },
-      409: { description: 'profile_name_conflict', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'delete',
-    path: '/v1/perfis/{id}',
-    tags: ['Perfis'],
-    summary: 'Exclui um perfil',
-    description: 'Remove o perfil quando ele não tem permissão nem acesso. Com vínculo, a resposta é 409 delete_restricted.',
-    security: bearerAuth,
-    request: { params: profileIdParamsSchema },
-    responses: {
-      204: { description: 'Perfil excluído' },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'profile_not_found', content: json(errorSchema) },
-      409: { description: 'delete_restricted', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'post',
-    path: '/v1/permissoes',
-    tags: ['Permissões'],
-    summary: 'Concede ações de um perfil sobre um recurso',
-    description: 'O recurso é um sistema, módulo, menu ou submenu da mesma empresa do perfil. A empresa não vai no corpo. Pelo menos uma ação precisa ser verdadeira. Esta rota ainda não bloqueia as demais.',
-    security: bearerAuth,
-    request: { body: { required: true, content: json(createPermissionBodySchema) } },
-    responses: {
-      201: { description: 'Permissão criada', content: json(permissionResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'profile_not_found ou resource_not_found', content: json(errorSchema) },
-      409: { description: 'permission_conflict ou permission_company_mismatch', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/permissoes',
-    tags: ['Permissões'],
-    summary: 'Lista permissões',
-    security: bearerAuth,
-    request: { query: listPermissionsQuerySchema },
-    responses: {
-      200: { description: 'Permissões do perfil, quando filtradas', content: json(z.array(permissionResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/permissoes/{id}',
-    tags: ['Permissões'],
-    summary: 'Consulta uma permissão',
-    security: bearerAuth,
-    request: { params: permissionIdParamsSchema },
-    responses: {
-      200: { description: 'Permissão encontrada', content: json(permissionResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'permission_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'patch',
-    path: '/v1/permissoes/{id}',
-    tags: ['Permissões'],
-    summary: 'Atualiza as ações de uma permissão',
-    description: 'Só mudam visualizar, criar, editar e excluir. Perfil e recurso permanecem. Todas as ações falsas apagam a concessão sem remover a linha.',
-    security: bearerAuth,
-    request: {
-      params: permissionIdParamsSchema,
-      body: { required: true, content: json(updatePermissionBodySchema) },
-    },
-    responses: {
-      200: { description: 'Permissão atualizada', content: json(permissionResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'permission_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'delete',
-    path: '/v1/permissoes/{id}',
-    tags: ['Permissões'],
-    summary: 'Exclui uma permissão',
-    description: 'Remove a concessão. A ação exige excluir na empresa do perfil.',
-    security: bearerAuth,
-    request: { params: permissionIdParamsSchema },
-    responses: {
-      204: { description: 'Permissão excluída' },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'permission_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'post',
-    path: '/v1/acessos',
-    tags: ['Acessos'],
-    summary: 'Liga um usuário a um perfil em um sistema',
-    description: 'Usuário, perfil e sistema precisam ser da mesma empresa. O par usuário + sistema é único. O primeiro acesso ativo liga a autorização das demais rotas.',
-    security: bearerAuth,
-    request: { body: { required: true, content: json(createAccessBodySchema) } },
-    responses: {
-      201: { description: 'Acesso criado', content: json(accessResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'user_not_found, profile_not_found ou system_not_found', content: json(errorSchema) },
-      409: { description: 'access_conflict ou access_company_mismatch', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/acessos',
-    tags: ['Acessos'],
-    summary: 'Lista acessos',
-    security: bearerAuth,
-    request: { query: listAccessesQuerySchema },
-    responses: {
-      200: { description: 'Acessos filtrados por usuário e/ou sistema', content: json(z.array(accessResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/acessos/{id}',
-    tags: ['Acessos'],
-    summary: 'Consulta um acesso',
-    security: bearerAuth,
-    request: { params: accessIdParamsSchema },
-    responses: {
-      200: { description: 'Acesso encontrado', content: json(accessResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'access_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'patch',
-    path: '/v1/acessos/{id}',
-    tags: ['Acessos'],
-    summary: 'Atualiza o perfil ou o status de um acesso',
-    description: 'Usuário e sistema não mudam. O novo perfil precisa ser da mesma empresa. A exclusão é a rota DELETE.',
-    security: bearerAuth,
-    request: {
-      params: accessIdParamsSchema,
-      body: { required: true, content: json(updateAccessBodySchema) },
-    },
-    responses: {
-      200: { description: 'Acesso atualizado', content: json(accessResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'access_not_found, user_not_found, profile_not_found ou system_not_found', content: json(errorSchema) },
-      409: { description: 'access_company_mismatch', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'delete',
-    path: '/v1/acessos/{id}',
-    tags: ['Acessos'],
-    summary: 'Exclui um acesso',
-    description: 'Remove o vínculo do usuário com o perfil naquele sistema. A ação exige excluir na empresa do sistema.',
-    security: bearerAuth,
-    request: { params: accessIdParamsSchema },
-    responses: {
-      204: { description: 'Acesso excluído' },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'access_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/auditorias',
-    tags: ['Auditoria'],
-    summary: 'Lista o histórico de alterações',
-    description: 'Mais recente primeiro. desde e ate filtram ocorridoEm. A lista fica restrita às empresas que o chamador pode visualizar. Não há criação manual nem alteração do histórico.',
-    security: bearerAuth,
-    request: { query: listAuditsQuerySchema },
-    responses: {
-      200: { description: 'Eventos visíveis para o chamador', content: json(z.array(auditResponseSchema)) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'get',
-    path: '/v1/auditorias/{id}',
-    tags: ['Auditoria'],
-    summary: 'Consulta um evento de auditoria',
-    security: bearerAuth,
-    request: { params: auditIdParamsSchema },
-    responses: {
-      200: { description: 'Evento encontrado', content: json(auditResponseSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      404: { description: 'audit_not_found', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
-    },
-  });
-  registry.registerPath({
-    method: 'post',
-    path: '/v1/importacoes/legado',
-    tags: ['Importação'],
-    summary: 'Importa o catálogo legado já saneado',
-    description: 'Grava empresa, sistema, módulo, menu, submenu e perfil. Um sistema sem empresa no dump só entra quando existe uma única empresa. Acesso antigo vira permissão de visualizar no submenu. Senha, RG e CPF não fazem parte do corpo. Usuário sem e-mail ou sem sub é ignorado.',
-    security: bearerAuth,
-    request: { body: { required: true, content: json(importLegacyBodySchema) } },
-    responses: {
-      200: { description: 'Contagens da importação', content: json(legacyImportReportSchema) },
-      400: { description: 'validation_error', content: json(validationErrorSchema) },
-      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
-      403: { description: 'forbidden', content: json(errorSchema) },
-      409: { description: 'legacy_system_owner_unknown', content: json(errorSchema) },
-      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
-    },
   });
 
   registerOwnedResource(registry, {
@@ -809,12 +384,251 @@ export function createOpenApiDocument() {
     response: submenuResponseSchema,
   });
 
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/usuarios',
+    tags: ['Usuários'],
+    summary: 'Cria um usuário e as telas dele',
+    description: 'Grava a pessoa e, na mesma transação, uma linha de acesso por tela. E-mail presente cria o usuário no Keycloak sem senha. keycloakSub é opcional e não é obrigatório no corpo. Exige administrador. Enquanto não existir administrador, um token válido cria o primeiro.',
+    security: bearerAuth,
+    request: { body: { required: true, content: json(createUserBodySchema) } },
+    responses: {
+      201: { description: 'Usuário criado', content: json(userResponseSchema) },
+      ...authErrors,
+      404: { description: 'company_not_found, system_not_found, module_not_found, menu_not_found ou submenu_not_found', content: json(errorSchema) },
+      409: { description: 'user_email_conflict, user_subject_conflict, identity_email_conflict ou access_conflict', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/usuarios/eu',
+    tags: ['Usuários'],
+    summary: 'Usuário local do token',
+    security: bearerAuth,
+    responses: {
+      200: { description: 'Cadastro local do subject', content: json(userResponseSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      404: { description: 'user_not_found', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/usuarios',
+    tags: ['Usuários'],
+    summary: 'Lista uma página dos usuários criados pelo administrador',
+    description: 'Filtros q, tipo e status. pagina começa em 1 e tamanho vai de 1 a 50. A resposta traz itens, total, pagina e tamanho.',
+    security: bearerAuth,
+    request: { query: userListQuerySchema },
+    responses: {
+      200: { description: 'Somente quem tem ID_USUARIO_INCLUSAO igual ao administrador logado', content: json(userPageSchema) },
+      401: { description: 'unauthorized ou invalid_token', content: json(errorSchema) },
+      403: { description: 'forbidden', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/usuarios/{id}/telas',
+    tags: ['Usuários'],
+    summary: 'Telas que o usuário pode abrir',
+    description: 'O mesmo recorte da consulta de acesso: sistema, módulo, menu e submenu. O próprio usuário ativo lê as suas. O administrador que o criou também.',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema },
+    responses: {
+      200: { description: 'Telas ativas', content: json(z.array(screenViewSchema)) },
+      ...authErrors,
+      404: { description: 'user_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/usuarios/{id}/codigo-acesso',
+    tags: ['Usuários'],
+    summary: 'Gera o código de primeiro acesso',
+    description: 'Grava no Keycloak uma senha temporária de uso único e encerra as sessões da conta. No login, a pessoa troca o código pela própria senha. O código só aparece nesta resposta e não é guardado no CCA. Exige o administrador que pode gerir o usuário.',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema },
+    responses: {
+      201: { description: 'Código emitido', content: json(z.object({ codigo: z.string() })) },
+      ...authErrors,
+      404: { description: 'user_not_found ou identity_subject_not_found', content: json(errorSchema) },
+      409: { description: 'access_code_unavailable: usuário desativado, sem sub ou sem provisionador', content: json(errorSchema) },
+      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/usuarios/{id}',
+    tags: ['Usuários'],
+    summary: 'Consulta um usuário criado pelo administrador',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema },
+    responses: {
+      200: { description: 'Usuário encontrado', content: json(userResponseSchema) },
+      ...authErrors,
+      404: { description: 'user_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/usuarios/{id}',
+    tags: ['Usuários'],
+    summary: 'Atualiza um usuário e pode trocar o conjunto de telas',
+    description: 'telas, quando informado, substitui as linhas de acesso daquele usuário. keycloakSub não muda. Nome, e-mail e status também atualizam o Keycloak. A exclusão não apaga a conta no diretório.',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema, body: { required: true, content: json(updateUserBodySchema) } },
+    responses: {
+      200: { description: 'Usuário atualizado', content: json(userResponseSchema) },
+      ...authErrors,
+      404: { description: 'user_not_found ou recurso da tela', content: json(errorSchema) },
+      409: { description: 'user_email_conflict, identity_email_conflict ou access_conflict', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/usuarios/{id}',
+    tags: ['Usuários'],
+    summary: 'Exclui um usuário',
+    description: 'Remove o cadastro quando ele não criou outros usuários e não tem tela nem auditoria. A conta no Keycloak permanece.',
+    security: bearerAuth,
+    request: { params: userIdParamsSchema },
+    responses: {
+      204: { description: 'Usuário excluído' },
+      ...authErrors,
+      404: { description: 'user_not_found', content: json(errorSchema) },
+      409: { description: 'delete_restricted', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/acessos',
+    tags: ['Acessos'],
+    summary: 'Concede uma tela a um usuário',
+    description: 'empresaId e submenuId identificam a tela. sistemaId, moduloId e menuId são opcionais: se os três vierem, a API confere a cadeia; se faltarem, ela resolve a cadeia a partir do submenu e confere a empresa.',
+    security: bearerAuth,
+    request: { body: { required: true, content: json(createAccessBodySchema) } },
+    responses: {
+      201: { description: 'Tela concedida', content: json(accessResponseSchema) },
+      ...authErrors,
+      404: { description: 'user_not_found ou recurso da cadeia', content: json(errorSchema) },
+      409: { description: 'access_conflict', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/acessos',
+    tags: ['Acessos'],
+    summary: 'Lista uma página das telas de um usuário',
+    description: 'usuarioId é obrigatório. q procura na empresa, no sistema, no módulo, no menu e no submenu. empresaId e sistemaId filtram a cadeia. Cada item já traz os nomes. pagina começa em 1 e tamanho vai de 1 a 50.',
+    security: bearerAuth,
+    request: { query: listAccessesQuerySchema },
+    responses: {
+      200: { description: 'Linhas de acesso com a cadeia montada', content: json(accessPageSchema) },
+      ...authErrors,
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/acessos/{id}',
+    tags: ['Acessos'],
+    summary: 'Consulta uma tela',
+    security: bearerAuth,
+    request: { params: accessIdParamsSchema },
+    responses: {
+      200: { description: 'Tela encontrada', content: json(accessResponseSchema) },
+      ...authErrors,
+      404: { description: 'access_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/acessos/{id}',
+    tags: ['Acessos'],
+    summary: 'Atualiza o status de uma tela',
+    security: bearerAuth,
+    request: { params: accessIdParamsSchema, body: { required: true, content: json(updateAccessBodySchema) } },
+    responses: {
+      200: { description: 'Tela atualizada', content: json(accessResponseSchema) },
+      ...authErrors,
+      404: { description: 'access_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/acessos/{id}',
+    tags: ['Acessos'],
+    summary: 'Remove uma tela',
+    security: bearerAuth,
+    request: { params: accessIdParamsSchema },
+    responses: {
+      204: { description: 'Tela removida' },
+      ...authErrors,
+      404: { description: 'access_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/auditorias',
+    tags: ['Auditoria'],
+    summary: 'Lista a auditoria do cadastro',
+    description: 'Somente leitura. q procura na descrição, no usuário, na ação e no recurso. desde e ate limitam o período. Com pagina, a resposta é uma página. Login e logout ficam no Keycloak.',
+    security: bearerAuth,
+    request: { query: listAuditsQuerySchema },
+    responses: {
+      200: { description: 'Eventos mais recentes primeiro', content: json(z.array(auditResponseSchema)) },
+      ...authErrors,
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/auditorias/{id}',
+    tags: ['Auditoria'],
+    summary: 'Consulta um evento',
+    security: bearerAuth,
+    request: { params: auditIdParamsSchema },
+    responses: {
+      200: { description: 'Evento encontrado', content: json(auditResponseSchema) },
+      ...authErrors,
+      404: { description: 'audit_not_found', content: json(errorSchema) },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/importacoes/legado',
+    tags: ['Importação'],
+    summary: 'Importa o catálogo legado já saneado',
+    description: 'Grava empresa, sistema global, módulo, menu e submenu. Acesso antigo vira uma linha de tela. Senha, RG e CPF não fazem parte do corpo. Usuário sem e-mail ou sem sub é ignorado.',
+    security: bearerAuth,
+    request: { body: { required: true, content: json(importLegacyBodySchema) } },
+    responses: {
+      200: { description: 'Contagens da importação', content: json(legacyImportReportSchema) },
+      ...authErrors,
+      503: { description: 'token_verifier_unavailable ou identity_directory_unavailable', content: json(errorSchema) },
+    },
+  });
+
   return new OpenApiGeneratorV31(registry.definitions).generateDocument({
     openapi: '3.1.0',
     info: {
       title: 'CCA API',
       version: '0.1.0',
-      description: 'Central de Controle de Acessos. A autenticação fica no Keycloak. As rotas /v1 exigem Bearer token. Com ao menos um acesso gravado, cada rota exige a ação do perfil sobre o recurso e responde forbidden quando ela falta. Sem nenhum acesso, qualquer token válido segue. GET /v1/me só lê as claims. A referência interativa está em /docs/.',
+      description: 'Central de Controle de Acessos. A autenticação fica no Keycloak. As rotas /v1 exigem Bearer token. O cadastro exige usuário local ATIVADO do tipo ADMINITRADOR. Enquanto não existir administrador, um token válido cria o primeiro. A tela que uma pessoa pode abrir é uma linha de acesso. GET /v1/me só lê as claims. A referência interativa está em /docs/.',
     },
     servers: [{ url: '/' }],
   });

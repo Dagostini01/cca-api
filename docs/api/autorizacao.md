@@ -1,53 +1,27 @@
-# Autorização das rotas
+# Autorização
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra.
+O Keycloak autentica. A CCA decide o que o usuário local pode operar.
 
-`GET /health` e `/docs` continuam públicos. `GET /v1/me` só lê as claims do token. `GET /v1/usuarios/eu` lê o usuário local daquele `sub` e responde 404 `user_not_found` quando a linha não existe. Essas duas rotas não consultam acesso nem permissão.
+Operar o cadastro (empresa, sistema, cadeia, usuários, telas, auditoria e importação) exige usuário local `ATIVADO` do tipo `ADMINITRADOR`.
 
-As demais rotas `/v1` exigem o Bearer token e, depois do primeiro acesso gravado, a ação correspondente.
+Enquanto não existir nenhum administrador, de qualquer status, um token válido opera o cadastro. Isso substitui a trava antiga de “zero acessos libera tudo”. Um conjunto só de administradores desativados fecha o cadastro: a abertura inicial não volta.
 
-## Trava inicial
+Supervisor não ganha o cadastro geral. A tela que ele pode abrir é uma linha `ATIVADO` em `t052_usuarios_acessos` para aquele submenu.
 
-Enquanto a tabela `acessos` não tem nenhuma linha, qualquer token válido chama as rotas autenticadas. O primeiro acesso gravado liga a autorização. Isso permite criar a primeira empresa, o primeiro usuário, o perfil, as permissões e o sistema antes de existir quem possa concedê-los.
+`GET /v1/me`, `/health` e `/docs` não consultam esse cadastro. `GET /v1/usuarios/eu` devolve o próprio usuário do token.
 
-A ordem prática, ainda com a tabela vazia:
+O administrador lista e altera os usuários cujo `criadoPorId` é o dele. Usuário sem autor, como o importado ou o primeiro, pode ser administrado por qualquer administrador ativo.
 
-1. empresa
-2. sistema dessa empresa
-3. usuário local com o `sub` do token
-4. perfil da mesma empresa
-5. permissão `EMPRESA` com visualizar, criar e editar
-6. permissão `SISTEMA` sobre o sistema já criado
-7. acesso ativo ligando usuário, perfil e sistema
+Não há perfil e não há ações visualizar, criar, editar e excluir.
 
-A partir desse acesso, token sem usuário local ativo recebe 403 `forbidden`. Usuário inativo também. A API não registra o `sub`.
+## Rotas
 
-## O que uma concessão cobre
-
-Um acesso ativo aplica as permissões do perfil somente nos recursos daquele sistema e da empresa dele. Vários acessos ativos se somam. Perfil inativo ou acesso inativo não entra. A ação no pai não vale para o filho: visualizar o sistema não visualiza o módulo.
-
-`excluir` vale só no `DELETE` do mesmo alvo em que `editar` vale. Empresa, sistema, módulo, menu e submenu usam o próprio nó. Usuário, perfil, permissão e acesso usam a `EMPRESA` dona. A auditoria não tem exclusão.
-
-Consulta por id carrega o registro primeiro. Se ele não existe, a resposta segue o 404 daquele recurso. Se existe e a ação falta, a resposta é 403 `forbidden`. Na criação, o pai ausente continua 404. Pai existente sem a ação é 403.
-
-Listas devolvem só o que o chamador pode visualizar. Sem nenhum item visível, a resposta é 200 com lista vazia.
-
-## Ação por rota
-
-| Rota | Ação |
-| --- | --- |
-| `POST /v1/empresas` | `criar` em ao menos uma `EMPRESA` que o chamador já administra. Na trava inicial, qualquer token válido cria a primeira. |
-| `GET`, `PATCH` e `DELETE /v1/empresas/:id` | `visualizar`, `editar` ou `excluir` nessa `EMPRESA` |
-| `GET /v1/empresas` | só as empresas com `visualizar` |
-| `POST /v1/sistemas` | `criar` na `EMPRESA` do corpo |
-| `GET`, `PATCH` e `DELETE /v1/sistemas/:id` | `visualizar`, `editar` ou `excluir` nesse `SISTEMA` |
-| `POST /v1/modulos` | `criar` no `SISTEMA` pai |
-| `GET`, `PATCH` e `DELETE` de módulo, menu ou submenu | `visualizar`, `editar` ou `excluir` naquele nó |
-| `POST /v1/menus` | `criar` no `MODULO` pai |
-| `POST /v1/submenus` | `criar` no `MENU` pai |
-| `POST`, `GET`, `PATCH` e `DELETE` de usuários, perfis, permissões e acessos | `criar`, `visualizar`, `editar` ou `excluir` na `EMPRESA` dona do cadastro |
-| `GET /v1/auditorias` | `visualizar` na `EMPRESA` de cada evento. A lista omite o resto |
-
-Mover um usuário ou um perfil para outra empresa exige `editar` na empresa atual e na empresa de destino. Mover um sistema exige `editar` no sistema e `editar` na empresa de destino. Mover módulo, menu ou submenu exige `editar` no nó e `criar` no novo pai.
-
-Administrar permissão ou acesso usa a empresa do perfil ou do usuário, não um recurso separado da CCA.
+| Rota | Regra |
+|---|---|
+| `GET /health`, `GET /docs`, `GET /v1/me` | Sem cadastro local |
+| `GET /v1/usuarios/eu` | O usuário do token |
+| Cadastro de empresa, sistema, cadeia, auditoria e importação | Administrador ativo, ou abertura inicial |
+| `GET /v1/usuarios` | Usuários criados pelo administrador do token |
+| `GET /v1/usuarios/:id/telas` | O próprio usuário ativo, ou o administrador que pode geri-lo |
+| `POST`, `PATCH` e `DELETE` de usuário e de acesso | O administrador que pode gerir aquele usuário |
+| `GET /v1/acessos/:id` | O dono ativo da linha, se a tela estiver `ATIVADO`, ou o administrador que pode geri-lo |

@@ -86,6 +86,23 @@ describe('keycloak user directory', () => {
     expect(updated).not.toHaveProperty('credentials');
   });
 
+  it('keeps username and email when the sync carries no email', async () => {
+    const calls: string[] = [];
+    const directory = createKeycloakUserDirectory(config, async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/token')) return Response.json({ access_token: 'token-1', expires_in: 300 });
+      if (init?.method === 'PUT') {
+        calls.push(typeof init.body === 'string' ? init.body : '');
+        return new Response(null, { status: 204 });
+      }
+      return Response.json({ id: userId, username: 'ana.legado', email: 'ana@exemplo.com', firstName: 'Ana', enabled: true });
+    });
+
+    await directory.sync(userId, { nome: 'Ana', enabled: false });
+    const updated = JSON.parse(calls[0] ?? '{}') as Record<string, unknown>;
+    expect(updated).toMatchObject({ username: 'ana.legado', email: 'ana@exemplo.com', enabled: false });
+  });
+
   it('reports the directory unavailable when the token request fails', async () => {
     const directory = createKeycloakUserDirectory(config, async () => {
       throw new Error('offline');

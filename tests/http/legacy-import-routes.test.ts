@@ -4,7 +4,6 @@ import { testEnv } from '../helpers/env.js';
 import { InMemoryCompanyRepository } from '../companies/in-memory-company-repository.js';
 import { InMemoryMenuRepository } from '../ownership/in-memory-menu-repository.js';
 import { InMemoryModuleRepository } from '../ownership/in-memory-module-repository.js';
-import { InMemoryProfileRepository } from '../profiles/in-memory-profile-repository.js';
 import { InMemorySubmenuRepository } from '../ownership/in-memory-submenu-repository.js';
 import { InMemorySystemRepository } from '../systems/in-memory-system-repository.js';
 
@@ -23,7 +22,6 @@ describe('HTTP legacy import', () => {
       moduleRepository: new InMemoryModuleRepository(),
       menuRepository: new InMemoryMenuRepository(),
       submenuRepository: new InMemorySubmenuRepository(),
-      profileRepository: new InMemoryProfileRepository(),
       logger: false,
     });
     apps.push(app);
@@ -58,9 +56,11 @@ describe('HTTP legacy import', () => {
       sistemas: { criadas: 1 },
       senhasIgnoradas: 2,
     });
+    expect(created.json()).not.toHaveProperty('perfis');
+    expect(created.json()).not.toHaveProperty('permissoes');
 
     const listed = await app.inject({ method: 'GET', url: '/v1/empresas', headers });
-    expect(listed.json()).toEqual([expect.objectContaining({ nome: 'Casa', cnpj: null })]);
+    expect(listed.json()).toEqual([expect.objectContaining({ razaoSocial: 'Casa', cnpj: null })]);
 
     const leaked = 'secret-must-not-leak';
     const rejected = await app.inject({
@@ -74,7 +74,7 @@ describe('HTTP legacy import', () => {
     expect(JSON.stringify(rejected.json())).not.toContain(leaked);
   });
 
-  it('returns a conflict when a system has no single owner', async () => {
+  it('imports one global system when several companies exist', async () => {
     const response = await createApp().inject({
       method: 'POST',
       url: '/v1/importacoes/legado',
@@ -87,7 +87,10 @@ describe('HTTP legacy import', () => {
         ],
       },
     });
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toEqual({ error: 'legacy_system_owner_unknown' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      empresas: { criadas: 2 },
+      sistemas: { criadas: 1 },
+    });
   });
 });

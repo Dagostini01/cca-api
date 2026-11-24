@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { InMemoryAccessRepository } from '../accesses/in-memory-access-repository.js';
-import { InMemoryCompanyRepository } from '../companies/in-memory-company-repository.js';
 import { ImportLegacyCatalog } from '../../src/modules/legacy-import/application/use-cases/import-legacy-catalog.js';
 import type { LegacyCatalog } from '../../src/modules/legacy-import/domain/legacy-catalog.js';
-import { LegacySystemOwnerUnknownError } from '../../src/modules/legacy-import/domain/legacy-import-error.js';
+import { InMemoryAccessRepository } from '../accesses/in-memory-access-repository.js';
+import { InMemoryCompanyRepository } from '../companies/in-memory-company-repository.js';
 import { InMemoryMenuRepository } from '../ownership/in-memory-menu-repository.js';
 import { InMemoryModuleRepository } from '../ownership/in-memory-module-repository.js';
-import { InMemoryPermissionRepository } from '../permissions/in-memory-permission-repository.js';
-import { InMemoryProfileRepository } from '../profiles/in-memory-profile-repository.js';
 import { InMemorySubmenuRepository } from '../ownership/in-memory-submenu-repository.js';
 import { InMemorySystemRepository } from '../systems/in-memory-system-repository.js';
 import { InMemoryUserRepository } from '../users/in-memory-user-repository.js';
@@ -37,19 +34,18 @@ describe('import legacy catalog', () => {
     const modules = new InMemoryModuleRepository();
     const menus = new InMemoryMenuRepository();
     const submenus = new InMemorySubmenuRepository();
-    const profiles = new InMemoryProfileRepository();
     const users = new InMemoryUserRepository();
-    const permissions = new InMemoryPermissionRepository();
     const accesses = new InMemoryAccessRepository();
     return {
       companies,
       systems,
       menus,
-      catalogImport: new ImportLegacyCatalog({ companies, systems, modules, menus, submenus, profiles, users, permissions, accesses }),
+      accesses,
+      catalogImport: new ImportLegacyCatalog({ companies, systems, modules, menus, submenus, users, accesses }),
     };
   }
 
-  it('places the chain under the only company and ignores a user without email', async () => {
+  it('places the global chain and ignores a user without email', async () => {
     const { companies, systems, menus, catalogImport } = importer();
     const report = await catalogImport.execute(catalog());
 
@@ -60,11 +56,12 @@ describe('import legacy catalog', () => {
     expect(report.modulos.criadas).toBe(1);
     expect(report.menus.criadas).toBe(1);
     expect(report.submenus.criadas).toBe(1);
-    expect(report.perfis.criadas).toBe(1);
     expect(report.usuarios.ignoradas).toBe(1);
-    expect((await companies.list())[0]).toMatchObject({ nome: 'Casa', cnpj: null, status: 'ATIVO' });
-    expect((await systems.list())[0]).toMatchObject({ nome: 'Portal', status: 'ATIVO' });
-    expect((await menus.list())[0]).toMatchObject({ nome: 'Logistica', status: 'INATIVO' });
+    expect(report).not.toHaveProperty('perfis');
+    expect(report).not.toHaveProperty('permissoes');
+    expect((await companies.list())[0]).toMatchObject({ razaoSocial: 'Casa', cnpj: null, status: 'ATIVADO' });
+    expect((await systems.list())[0]).toMatchObject({ nome: 'Portal', status: 'ATIVADO' });
+    expect((await menus.list())[0]).toMatchObject({ nome: 'Logistica', status: 'DESATIVADO' });
 
     const again = await catalogImport.execute(catalog());
     expect(again.empresas).toMatchObject({ criadas: 0, existentes: 1 });
@@ -72,36 +69,37 @@ describe('import legacy catalog', () => {
     expect(await companies.list()).toHaveLength(1);
   });
 
-  it('refuses to guess a system owner when several companies exist', async () => {
-    const { companies, catalogImport } = importer();
-    const source = catalog({
+  it('imports systems once even when several companies exist', async () => {
+    const { companies, systems, catalogImport } = importer();
+    const report = await catalogImport.execute(catalog({
       companies: [
         { id: 1, nome: 'Casa', cnpj: null, statusId: 1 },
         { id: 2, nome: 'Outra', cnpj: null, statusId: 1 },
       ],
-    });
-    await expect(catalogImport.execute(source)).rejects.toBeInstanceOf(LegacySystemOwnerUnknownError);
-    expect(await companies.list()).toHaveLength(0);
+    }));
+    expect(report.empresas.criadas).toBe(2);
+    expect(report.sistemas.criadas).toBe(1);
+    expect(await companies.list()).toHaveLength(2);
+    expect(await systems.list()).toHaveLength(1);
   });
 
-  it('links a user by subject and grants view on the submenu from an access row', async () => {
-    const { catalogImport, companies } = importer();
+  it('links a user by subject and grants the screen from an access row', async () => {
+    const { catalogImport, companies, accesses } = importer();
     const report = await catalogImport.execute(catalog({
       users: [{ nome: 'Ana Costa', email: 'ana@exemplo.com', statusId: 1, perfilId: 1 }],
       accesses: [{ email: 'ana@exemplo.com', empresaId: 1, sistemaId: 1, submenuId: 1, perfilId: 1, statusId: 1 }],
     }), undefined, [{ email: 'ana@exemplo.com', keycloakSub: subject }]);
 
     expect(report.usuarios.criadas).toBe(1);
-    expect(report.permissoes.criadas).toBe(1);
     expect(report.acessos.criadas).toBe(1);
     expect((await companies.list())[0]?.cnpj).toBeNull();
+    expect(await accesses.list()).toHaveLength(1);
 
     const again = await catalogImport.execute(catalog({
       users: [{ nome: 'Ana Costa', email: 'ana@exemplo.com', statusId: 1, perfilId: 1 }],
       accesses: [{ email: 'ana@exemplo.com', empresaId: 1, sistemaId: 1, submenuId: 1, perfilId: 1, statusId: 1 }],
     }), undefined, [{ email: 'ana@exemplo.com', keycloakSub: subject }]);
     expect(again.usuarios.existentes).toBe(1);
-    expect(again.permissoes.existentes).toBe(1);
     expect(again.acessos.existentes).toBe(1);
   });
 });

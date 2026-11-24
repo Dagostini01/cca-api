@@ -1,13 +1,32 @@
 # Módulos, menus e submenus
 
-O contrato executável está na referência Scalar, em `/docs/`. Cada nível só existe ligado ao pai imediato.
+A cadeia abaixo do sistema continua obrigatória:
 
-| Recurso | Pai obrigatório | Nome único dentro do pai |
-| --- | --- | --- |
-| `POST /v1/modulos` | `sistemaId` | sistema |
-| `POST /v1/menus` | `moduloId` | módulo |
-| `POST /v1/submenus` | `menuId` | menu |
+Sistema → Módulo → Menu → Submenu
 
-A listagem aceita o id do pai na query: `sistemaId`, `moduloId` ou `menuId`. Sem status, o padrão é `ATIVO`. `DELETE` exclui o nó quando ele não tem filho nem permissão apontando para ele. Com vínculo, a resposta é 409 `delete_restricted`. `INATIVO` no PATCH preserva os filhos.
+Cada filho exige o pai e o nome é único dentro desse pai. Status é `ATIVADO` ou `DESATIVADO`. Descrição curta e longa são opcionais. A empresa não entra nestas tabelas.
 
-Pai inexistente responde `404` com `system_not_found`, `module_not_found` ou `menu_not_found`, conforme o nível. Nome repetido no mesmo pai responde `409` com `module_name_conflict`, `menu_name_conflict` ou `submenu_name_conflict`. O mesmo nome pode existir em pais diferentes.
+`DELETE` exclui o nó quando ele não tem filho nem tela apontando para ele. Com vínculo, a resposta é 409 `delete_restricted`.
+
+Operar estas rotas exige administrador ativo.
+
+## Contrato
+
+- `POST /v1/modulos` com `{ "nome", "sistemaId", "descricaoCurta?", "descricaoLonga?", "status?" }`.
+- `POST /v1/menus` com `{ "nome", "moduloId", ... }`.
+- `POST /v1/submenus` com `{ "nome", "menuId", ... }`.
+
+Sem status, o padrão é `ATIVADO`. Resposta `201`.
+
+A listagem aceita o id do pai na query: `sistemaId`, `moduloId` ou `menuId`. Os ids são inteiros.
+
+`PATCH` altera ao menos um campo. Trocar o pai move o registro para outro pai existente.
+
+## Erros
+
+| Situação | HTTP | Corpo |
+|---|---|---|
+| Pai ausente no corpo | 400 | `validation_error` |
+| Pai inexistente | 404 | `system_not_found`, `module_not_found` ou `menu_not_found` |
+| Nome repetido no mesmo pai | 409 | `module_name_conflict`, `menu_name_conflict` ou `submenu_name_conflict` |
+| Nó com filho ou tela | 409 | `delete_restricted` |

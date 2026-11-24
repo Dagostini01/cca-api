@@ -1,24 +1,45 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { statusIdOf, statusOf } from '../../../../shared/catalog/status.js';
 import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
-import type { NewSubmenu, SubmenuRepository } from '../../application/ports/submenu-repository.js';
+import type { NewSubmenu, SubmenuListFilter, SubmenuPageQuery, SubmenuRepository } from '../../application/ports/submenu-repository.js';
 import type { Submenu } from '../../domain/submenu.js';
 import { SubmenuMenuNotFoundError, SubmenuNameConflictError, SubmenuNotFoundError } from '../../domain/submenu-errors.js';
 
 function toSubmenu(row: {
-  id: string;
-  menuId: string;
+  id: number;
+  menuId: number;
   nome: string;
-  status: Submenu['status'];
-  criadoEm: Date;
-  atualizadoEm: Date;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
+  statusId: number | null;
+  criadoEm: Date | null;
 }): Submenu {
   return {
     id: row.id,
     menuId: row.menuId,
     nome: row.nome,
-    status: row.status,
-    criadoEm: row.criadoEm,
-    atualizadoEm: row.atualizadoEm,
+    descricaoCurta: row.descricaoCurta,
+    descricaoLonga: row.descricaoLonga,
+    status: statusOf(row.statusId),
+    criadoEm: row.criadoEm ?? new Date(),
+  };
+}
+
+function whereOf(filter: SubmenuListFilter = {}): Prisma.SubmenuWhereInput {
+  const q = filter.q?.trim();
+  return {
+    ...(filter.menuId === undefined ? {} : { menuId: filter.menuId }),
+    ...(q ? {
+      OR: [
+        { nome: { contains: q } },
+        { descricaoCurta: { contains: q } },
+        { descricaoLonga: { contains: q } },
+        { menu: { nome: { contains: q } } },
+        { menu: { modulo: { nome: { contains: q } } } },
+        { menu: { modulo: { sistema: { nome: { contains: q } } } } },
+        { menu: { modulo: { sistema: { empresas: { some: { empresa: { razaoSocial: { contains: q } } } } } } } },
+      ],
+    } : {}),
   };
 }
 
@@ -36,19 +57,42 @@ export class PrismaSubmenuRepository implements SubmenuRepository {
 
   async add(submenu: NewSubmenu): Promise<Submenu> {
     try {
-      const row = await this.prisma.submenu.create({ data: submenu });
+      const row = await this.prisma.submenu.create({
+        data: {
+          menuId: submenu.menuId,
+          nome: submenu.nome,
+          descricaoCurta: submenu.descricaoCurta,
+          descricaoLonga: submenu.descricaoLonga,
+          statusId: statusIdOf(submenu.status),
+        },
+      });
       return toSubmenu(row);
     } catch (error) {
       mapPersistenceError(error);
     }
   }
 
-  async list(menuId?: string): Promise<Submenu[]> {
-    const rows = await this.prisma.submenu.findMany({ where: menuId ? { menuId } : undefined });
+  async list(filter: SubmenuListFilter = {}): Promise<Submenu[]> {
+    const rows = await this.prisma.submenu.findMany({ where: whereOf(filter) });
     return rows.map(toSubmenu);
   }
 
-  async findById(id: string): Promise<Submenu | null> {
+  async page(query: SubmenuPageQuery): Promise<{ rows: Submenu[]; total: number }> {
+    const where = whereOf(query);
+    const skip = (query.pagina - 1) * query.tamanho;
+    const [total, rows] = await Promise.all([
+      this.prisma.submenu.count({ where }),
+      this.prisma.submenu.findMany({
+        where,
+        orderBy: [{ nome: 'asc' }, { menuId: 'asc' }, { id: 'asc' }],
+        skip,
+        take: query.tamanho,
+      }),
+    ]);
+    return { rows: rows.map(toSubmenu), total };
+  }
+
+  async findById(id: number): Promise<Submenu | null> {
     const row = await this.prisma.submenu.findUnique({ where: { id } });
     return row ? toSubmenu(row) : null;
   }
@@ -57,7 +101,13 @@ export class PrismaSubmenuRepository implements SubmenuRepository {
     try {
       const row = await this.prisma.submenu.update({
         where: { id: submenu.id },
-        data: { menuId: submenu.menuId, nome: submenu.nome, status: submenu.status },
+        data: {
+          menuId: submenu.menuId,
+          nome: submenu.nome,
+          descricaoCurta: submenu.descricaoCurta,
+          descricaoLonga: submenu.descricaoLonga,
+          statusId: statusIdOf(submenu.status),
+        },
       });
       return toSubmenu(row);
     } catch (error) {
@@ -65,7 +115,7 @@ export class PrismaSubmenuRepository implements SubmenuRepository {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     try {
       await this.prisma.submenu.delete({ where: { id } });
     } catch (error) {

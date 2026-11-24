@@ -14,12 +14,16 @@ export type SystemServices = {
   deleteSystem: DeleteSystem;
 };
 
-export function createSystemServices(systems: SystemRepository, companies: ParentCompanyLookup, blockers?: SystemDeleteBlockers): SystemServices {
+export function createSystemServices(
+  systems: SystemRepository,
+  blockers: SystemDeleteBlockers = {},
+  companies?: ParentCompanyLookup,
+): SystemServices {
   return {
     createSystem: new CreateSystem(systems, companies),
     listSystems: new ListSystems(systems),
     getSystem: new GetSystem(systems),
-    updateSystem: new UpdateSystem(systems, companies),
+    updateSystem: new UpdateSystem(systems, { companies, accesses: blockers.accesses }),
     deleteSystem: new DeleteSystem(systems, blockers),
   };
 }

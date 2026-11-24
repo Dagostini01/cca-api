@@ -22,16 +22,10 @@ import type { SubmenuRepository } from './modules/submenus/application/ports/sub
 import { createSubmenuServices } from './modules/submenus/application/factories/submenu-services-factory.js';
 import { registerSubmenuRoutes } from './modules/submenus/adapters/inbound/http/submenu-routes.js';
 import type { IdentityDirectory } from './modules/users/application/ports/identity-directory.js';
+import type { UserRegistrar } from './modules/users/application/ports/user-registrar.js';
 import type { UserRepository } from './modules/users/application/ports/user-repository.js';
 import { createUserServices } from './modules/users/application/factories/user-services-factory.js';
 import { registerUserRoutes } from './modules/users/adapters/inbound/http/user-routes.js';
-import type { ProfileRepository } from './modules/profiles/application/ports/profile-repository.js';
-import { createProfileServices } from './modules/profiles/application/factories/profile-services-factory.js';
-import { registerProfileRoutes } from './modules/profiles/adapters/inbound/http/profile-routes.js';
-import type { PermissionRepository } from './modules/permissions/application/ports/permission-repository.js';
-import type { ChainResourceLookup } from './modules/permissions/application/ports/chain-resource-lookup.js';
-import { createPermissionServices } from './modules/permissions/application/factories/permission-services-factory.js';
-import { registerPermissionRoutes } from './modules/permissions/adapters/inbound/http/permission-routes.js';
 import type { AccessRepository } from './modules/accesses/application/ports/access-repository.js';
 import { createAccessServices } from './modules/accesses/application/factories/access-services-factory.js';
 import { registerAccessRoutes } from './modules/accesses/adapters/inbound/http/access-routes.js';
@@ -50,10 +44,8 @@ export type BuildAppOptions = {
   menuRepository?: MenuRepository;
   submenuRepository?: SubmenuRepository;
   userRepository?: UserRepository;
+  userRegistrar?: UserRegistrar;
   identityDirectory?: IdentityDirectory;
-  profileRepository?: ProfileRepository;
-  permissionRepository?: PermissionRepository;
-  chainResourceLookup?: ChainResourceLookup;
   accessRepository?: AccessRepository;
   authorizer?: Authorizer;
   auditRepository?: AuditRepository;
@@ -77,65 +69,85 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
   const audits = options.auditRecorder;
   if (options.companyRepository) {
     registerCompanyRoutes(app, createCompanyServices(options.companyRepository, {
-      systems: options.systemRepository,
-      users: options.userRepository,
-      profiles: options.profileRepository,
-      permissions: options.permissionRepository,
-    }), getCurrentUser, authorizer, audits);
-  }
-  if (options.companyRepository && options.systemRepository) {
-    registerSystemRoutes(app, createSystemServices(options.systemRepository, options.companyRepository, {
-      modules: options.moduleRepository,
-      permissions: options.permissionRepository,
       accesses: options.accessRepository,
     }), getCurrentUser, authorizer, audits);
+  }
+  if (options.systemRepository) {
+    registerSystemRoutes(app, createSystemServices(options.systemRepository, {
+      modules: options.moduleRepository,
+      accesses: options.accessRepository,
+    }, options.companyRepository), getCurrentUser, authorizer, audits);
   }
   if (options.systemRepository && options.moduleRepository) {
     registerModuleRoutes(app, createModuleServices(options.moduleRepository, options.systemRepository, {
       menus: options.menuRepository,
-      permissions: options.permissionRepository,
+      accesses: options.accessRepository,
     }), getCurrentUser, authorizer, audits);
   }
   if (options.moduleRepository && options.menuRepository) {
     registerMenuRoutes(app, createMenuServices(options.menuRepository, options.moduleRepository, {
       submenus: options.submenuRepository,
-      permissions: options.permissionRepository,
+      accesses: options.accessRepository,
     }), getCurrentUser, authorizer, audits);
   }
   if (options.menuRepository && options.submenuRepository) {
     registerSubmenuRoutes(app, createSubmenuServices(options.submenuRepository, options.menuRepository, {
-      permissions: options.permissionRepository,
-    }), getCurrentUser, authorizer, audits);
-  }
-  if (options.companyRepository && options.userRepository) {
-    registerUserRoutes(app, createUserServices(options.userRepository, options.companyRepository, options.identityDirectory, {
-      accesses: options.accessRepository,
-      audits: options.auditRepository,
-    }), getCurrentUser, authorizer, audits);
-  }
-  if (options.companyRepository && options.profileRepository) {
-    registerProfileRoutes(app, createProfileServices(options.profileRepository, options.companyRepository, {
-      permissions: options.permissionRepository,
       accesses: options.accessRepository,
     }), getCurrentUser, authorizer, audits);
   }
-  if (options.profileRepository && options.permissionRepository && options.chainResourceLookup) {
-    registerPermissionRoutes(
-      app,
-      createPermissionServices(options.permissionRepository, options.profileRepository, options.chainResourceLookup),
-      getCurrentUser,
-      authorizer,
-      options.profileRepository,
-      audits,
-    );
+  if (
+    options.userRepository
+    && options.userRegistrar
+    && options.accessRepository
+    && options.companyRepository
+    && options.systemRepository
+    && options.moduleRepository
+    && options.menuRepository
+    && options.submenuRepository
+  ) {
+    registerUserRoutes(app, createUserServices({
+      users: options.userRepository,
+      accesses: options.accessRepository,
+      registrar: options.userRegistrar,
+      chain: {
+        companies: options.companyRepository,
+        systems: options.systemRepository,
+        modules: options.moduleRepository,
+        menus: options.menuRepository,
+        submenus: options.submenuRepository,
+      },
+      systems: options.systemRepository,
+      modules: options.moduleRepository,
+      menus: options.menuRepository,
+      submenus: options.submenuRepository,
+      directory: options.identityDirectory,
+      blockers: {
+        accesses: options.accessRepository,
+        audits: options.auditRepository,
+      },
+    }), getCurrentUser, authorizer, audits);
   }
-  if (options.userRepository && options.profileRepository && options.systemRepository && options.accessRepository) {
+  if (
+    options.userRepository
+    && options.accessRepository
+    && options.companyRepository
+    && options.systemRepository
+    && options.moduleRepository
+    && options.menuRepository
+    && options.submenuRepository
+  ) {
     registerAccessRoutes(
       app,
-      createAccessServices(options.accessRepository, options.userRepository, options.profileRepository, options.systemRepository),
+      createAccessServices(options.accessRepository, options.userRepository, {
+        companies: options.companyRepository,
+        systems: options.systemRepository,
+        modules: options.moduleRepository,
+        menus: options.menuRepository,
+        submenus: options.submenuRepository,
+      }),
+      options.userRepository,
       getCurrentUser,
       authorizer,
-      { users: options.userRepository, systems: options.systemRepository },
       audits,
     );
   }
@@ -148,7 +160,6 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
     && options.moduleRepository
     && options.menuRepository
     && options.submenuRepository
-    && options.profileRepository
   ) {
     registerLegacyImportRoutes(app, {
       companies: options.companyRepository,
@@ -156,9 +167,7 @@ export function buildApp(env: Env, options: BuildAppOptions = {}) {
       modules: options.moduleRepository,
       menus: options.menuRepository,
       submenus: options.submenuRepository,
-      profiles: options.profileRepository,
       users: options.userRepository,
-      permissions: options.permissionRepository,
       accesses: options.accessRepository,
       directory: options.identityDirectory,
     }, getCurrentUser, authorizer, audits);

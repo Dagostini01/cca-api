@@ -142,3 +142,21 @@
 - Impactos: `DELETE` em empresas, sistemas, módulos, menus, submenus, usuários, perfis, permissões e acessos. A resposta de sucesso é 204. Com vínculo, 409 `delete_restricted`. A auditoria não tem `DELETE`. A conta no Keycloak não é apagada com o usuário local. O CORS passa a anunciar `DELETE`.
 - Migration: `prisma/migrations/20261014060000_audit_delete_action/migration.sql`.
 - Rollback: nova migration devolvendo o enum para `CRIAR` e `ATUALIZAR`, só se não houver linha `EXCLUIR`. Não editar a migration já aplicada.
+
+## 016 — Acesso por tela
+
+- Problema: o banco usava UUID, sistema preso à empresa, perfil e permissão com visualizar, criar, editar e excluir. O script do stakeholder usa inteiros, sistema global e uma linha de acesso por tela.
+- Estrutura: tabelas `t010` a `t076` do script, com `INT` autoincremento e charset `utf8mb4`. Status em `t046_tp_status` (`ATIVADO`, `DESATIVADO`). Tipos em `t048_tp_usuarios`, inclusive o rótulo `ADMINITRADOR`. `t052_usuarios_acessos` guarda empresa, sistema, módulo, menu e submenu. A chave `ID_TP_USUARIO` aponta para `t048`, não para `t045`. `t045` ganha `KEYCLOAK_SUB` e `ID_USUARIO_INCLUSAO`. `t047_usuarios_senhas` existe e permanece sem leitura nem gravação pela API.
+- Justificativa: ADR-003. A migration copia empresa, sistema, módulo, menu, submenu e usuário local já gravados e remove as tabelas UUID. Não copia senha, perfil, permissão, acesso antigo nem auditoria antiga.
+- Impactos: identificadores da API passam a inteiro. `POST /v1/usuarios` grava as telas na mesma transação. A lista de usuários devolve só quem o administrador criou. O cadastro exige `ADMINITRADOR` ativo. A tela abre quando existe linha `ATIVADO` em `t052`. `/v1/perfis` e `/v1/permissoes` saem.
+- Migration: `prisma/migrations/20261015180000_stakeholder_screen_access/migration.sql`.
+- Rollback: nova migration. Não editar esta. O arquivo `bkp_01-10-2026-18-35.sql` não entra no Git.
+
+## 017 — Empresas de cada sistema
+
+- Problema: sistema e empresa não tinham vínculo. Qualquer empresa recebia tela de qualquer sistema.
+- Estrutura: nova tabela `t012_empresas_sistemas` com chave (`ID_EMPRESA`, `ID_SISTEMA`), chaves estrangeiras para `t010` e `t025` com `ON DELETE CASCADE` e charset `utf8mb4`. As tabelas do script não mudam.
+- Justificativa: ADR-004.
+- Impactos: a migration liga cada sistema às empresas das telas já gravadas em `t052`. A tela só é concedida em empresa ligada ao sistema. Sistemas ganham `empresaIds` e o filtro `?empresaId=`.
+- Migration: `prisma/migrations/20261028010000_company_systems/migration.sql`.
+- Rollback: nova migration com `DROP TABLE t012_empresas_sistemas`. Não editar a migration já aplicada.

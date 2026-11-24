@@ -1,5 +1,6 @@
+import type { ScreenChainLookup } from '../services/screen-chain.js';
+import type { UserRepository } from '../../../users/application/ports/user-repository.js';
 import type { AccessRepository } from '../ports/access-repository.js';
-import type { AccessPartyLookup } from '../ports/access-party-lookup.js';
 import { CreateAccess } from '../use-cases/create-access.js';
 import { DeleteAccess } from '../use-cases/delete-access.js';
 import { GetAccess } from '../use-cases/get-access.js';
@@ -16,15 +17,14 @@ export type AccessServices = {
 
 export function createAccessServices(
   accesses: AccessRepository,
-  users: AccessPartyLookup,
-  profiles: AccessPartyLookup,
-  systems: AccessPartyLookup,
+  users: UserRepository,
+  chain: ScreenChainLookup,
 ): AccessServices {
   return {
-    createAccess: new CreateAccess(accesses, users, profiles, systems),
+    createAccess: new CreateAccess(accesses, users, chain),
     listAccesses: new ListAccesses(accesses),
     getAccess: new GetAccess(accesses),
-    updateAccess: new UpdateAccess(accesses, users, profiles, systems),
+    updateAccess: new UpdateAccess(accesses),
     deleteAccess: new DeleteAccess(accesses),
   };
 }

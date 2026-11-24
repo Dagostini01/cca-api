@@ -1,25 +1,32 @@
 # Sistemas
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
+Sistema fica em `t025_sistemas`. O nome é único no catálogo. Status é `ATIVADO` ou `DESATIVADO`. Descrição curta e longa são opcionais.
 
-Um sistema só existe ligado a uma empresa. `empresaId` é obrigatório na criação e precisa ser o id de uma empresa já cadastrada. O nome é único dentro da empresa; outra empresa pode repetir o mesmo nome. A comparação segue a collation do banco, sem diferenciar maiúsculas.
+Cada sistema é ligado às empresas que o usam, em `t012_empresas_sistemas`. Uma tela só é concedida numa empresa ligada ao sistema dela. Ver ADR-004.
 
-`DELETE /v1/sistemas/:id` exclui o sistema quando ele não tem módulo, permissão nem acesso. Com vínculo, a resposta é 409 `delete_restricted`. `status: "INATIVO"` no PATCH continua tirando o sistema de uso e preservando os módulos.
+`DELETE /v1/sistemas/:id` exclui o sistema quando ele não tem módulo nem tela. Com vínculo, a resposta é 409 `delete_restricted`. Os vínculos com empresas saem junto.
 
-## Rotas
+Operar estas rotas exige administrador ativo, com a mesma abertura inicial das empresas.
 
-Todas exigem Bearer token.
+## Contrato
 
-- `POST /v1/sistemas` com `{ "nome", "empresaId", "status?" }`. Sem status, o padrão é `ATIVO`. Resposta `201`.
-- `GET /v1/sistemas` lista por nome. `?empresaId=` restringe à empresa.
-- `GET /v1/sistemas/:id`
-- `PATCH /v1/sistemas/:id` altera ao menos um campo entre `nome`, `empresaId` e `status`. Trocar `empresaId` move o sistema para outra empresa existente.
+- `POST /v1/sistemas` com `{ "nome", "descricaoCurta?", "descricaoLonga?", "status?", "empresaIds?" }`. Sem status, o padrão é `ATIVADO`. Resposta `201`.
+- `GET /v1/sistemas` lista por nome. `?empresaId=` traz só os sistemas daquela empresa.
+- `GET /v1/sistemas/:id` lê um sistema.
+- `PATCH /v1/sistemas/:id` altera ao menos um campo entre nome, descrições, status e `empresaIds`. `empresaIds` substitui as empresas ligadas.
+- `DELETE /v1/sistemas/:id` responde `204` sem corpo.
+
+A resposta traz `empresaIds` em ordem crescente. `:id` é inteiro positivo.
 
 ## Erros
 
-| Situação | HTTP | `error` |
-| --- | --- | --- |
-| Empresa inexistente | 404 | `company_not_found` |
-| Sistema inexistente | 404 | `system_not_found` |
-| Nome repetido na mesma empresa | 409 | `system_name_conflict` |
-| JSON inválido, id inválido ou corpo vazio | 400 | `validation_error` |
+| Situação | HTTP | Corpo |
+|---|---|---|
+| Sem Bearer | 401 | `{ "error": "unauthorized" }` |
+| Quem chama não é administrador ativo | 403 | `{ "error": "forbidden" }` |
+| Nome vazio, longo demais ou `empresaId` no corpo | 400 | `validation_error` |
+| O mesmo nome já existe | 409 | `system_name_conflict` |
+| Id inexistente | 404 | `system_not_found` |
+| Empresa de `empresaIds` inexistente | 404 | `company_not_found` |
+| Tirar empresa que ainda tem tela do sistema | 409 | `system_company_in_use` |
+| Sistema com módulo ou tela | 409 | `delete_restricted` |

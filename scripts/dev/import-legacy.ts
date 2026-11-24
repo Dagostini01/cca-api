@@ -1,12 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { createPrismaAccessRepository } from '../../src/modules/accesses/adapters/outbound/prisma-access-repository.js';
+import { createPrismaCompanyRepository } from '../../src/modules/companies/adapters/outbound/prisma-company-repository.js';
 import { readLegacyDump } from '../../src/modules/legacy-import/adapters/outbound/read-legacy-dump.js';
 import { ImportLegacyCatalog } from '../../src/modules/legacy-import/application/use-cases/import-legacy-catalog.js';
-import { createPrismaCompanyRepository } from '../../src/modules/companies/adapters/outbound/prisma-company-repository.js';
 import { createPrismaMenuRepository } from '../../src/modules/menus/adapters/outbound/prisma-menu-repository.js';
 import { createPrismaModuleRepository } from '../../src/modules/system-modules/adapters/outbound/prisma-module-repository.js';
-import { createPrismaPermissionRepository } from '../../src/modules/permissions/adapters/outbound/prisma-permission-repository.js';
-import { createPrismaProfileRepository } from '../../src/modules/profiles/adapters/outbound/prisma-profile-repository.js';
 import { createPrismaSubmenuRepository } from '../../src/modules/submenus/adapters/outbound/prisma-submenu-repository.js';
 import { createPrismaSystemRepository } from '../../src/modules/systems/adapters/outbound/prisma-system-repository.js';
 import { createPrismaUserRepository } from '../../src/modules/users/adapters/outbound/prisma-user-repository.js';
@@ -30,9 +28,7 @@ try {
     modules: createPrismaModuleRepository(prisma),
     menus: createPrismaMenuRepository(prisma),
     submenus: createPrismaSubmenuRepository(prisma),
-    profiles: createPrismaProfileRepository(prisma),
     users: createPrismaUserRepository(prisma),
-    permissions: createPrismaPermissionRepository(prisma),
     accesses: createPrismaAccessRepository(prisma),
   }).execute(catalog);
   console.log(JSON.stringify(report));

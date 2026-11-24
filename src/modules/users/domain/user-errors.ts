@@ -16,6 +16,14 @@ export class InvalidUserEmailError extends DomainError {
   }
 }
 
+export class InvalidUserDocumentError extends DomainError {
+  readonly code = 'invalid_user_document';
+
+  constructor() {
+    super('invalid_user_document');
+  }
+}
+
 export class InvalidUserSubjectError extends DomainError {
   readonly code = 'invalid_user_subject';
 
@@ -64,6 +72,14 @@ export class IdentityEmailConflictError extends DomainError {
   }
 }
 
+export class AccessCodeUnavailableError extends DomainError {
+  readonly code = 'access_code_unavailable';
+
+  constructor() {
+    super('access_code_unavailable');
+  }
+}
+
 export class IdentitySubjectNotFoundError extends DomainError {
   readonly code = 'identity_subject_not_found';
 
@@ -85,5 +101,13 @@ export class UserCompanyNotFoundError extends DomainError {
 
   constructor() {
     super('company_not_found');
+  }
+}
+
+export class SelfDeactivationError extends DomainError {
+  readonly code = 'self_deactivation';
+
+  constructor() {
+    super('self_deactivation');
   }
 }

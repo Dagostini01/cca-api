@@ -6,10 +6,10 @@ const suffix = Date.now().toString();
 try {
   await prisma.$connect();
   const empresa = await prisma.empresa.create({
-    data: { nome: `Empresa ${suffix}`, cnpj: suffix.slice(-14) },
+    data: { razaoSocial: `Empresa ${suffix}` },
   });
   const sistema = await prisma.sistema.create({
-    data: { nome: `Sistema ${suffix}`, empresaId: empresa.id },
+    data: { nome: `Sistema ${suffix}` },
   });
   const modulo = await prisma.modulo.create({
     data: { nome: `Modulo ${suffix}`, sistemaId: sistema.id },
@@ -21,16 +21,9 @@ try {
     data: { nome: `Submenu ${suffix}`, menuId: menu.id },
   });
 
-  await expectConstraint(() =>
-    prisma.sistema.create({ data: { nome: `Sistema ${suffix}`, empresaId: empresa.id } }),
-  );
-  await expectConstraint(() =>
-    prisma.sistema.create({
-      data: { nome: `Outro ${suffix}`, empresaId: '00000000-0000-4000-8000-000000000000' },
-    }),
-  );
+  await expectConstraint(() => prisma.sistema.create({ data: { nome: `Sistema ${suffix}` } }));
+  await expectConstraint(() => prisma.modulo.create({ data: { nome: `Outro ${suffix}`, sistemaId: 0 } }));
   await expectConstraint(() => prisma.empresa.delete({ where: { id: empresa.id } }));
-  await expectConstraint(() => prisma.empresa.create({ data: { nome: '   ' } }));
 
   await prisma.submenu.delete({ where: { id: submenu.id } });
   await prisma.menu.delete({ where: { id: menu.id } });

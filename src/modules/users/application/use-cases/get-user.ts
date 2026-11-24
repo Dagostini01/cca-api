@@ -5,7 +5,7 @@ import type { UserRepository } from '../ports/user-repository.js';
 export class GetUser {
   constructor(private readonly users: UserRepository) {}
 
-  async execute(id: string): Promise<BusinessUser> {
+  async execute(id: number): Promise<BusinessUser> {
     const user = await this.users.findById(id);
     if (!user) throw new UserNotFoundError();
     return user;

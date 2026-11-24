@@ -1,26 +1,14 @@
 # Auditoria
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
+Cada criação, atualização ou exclusão de cadastro grava uma linha em `t070_auditorias`. `DS_AUDITORIA` é a descrição, no máximo 128 caracteres. `DS_CURTA` guarda o tipo do recurso: `EMPRESA`, `SISTEMA`, `MODULO`, `MENU`, `SUBMENU`, `USUARIO` ou `ACESSO`. `ID_TP_AUDITORIA` é 1 `CRIAR`, 2 `ATUALIZAR` ou 3 `EXCLUIR`. `ID_USUARIO` é quem fez, quando esse usuário já existe localmente.
 
-A auditoria é o histórico das alterações feitas nesta API. Cada linha guarda a data e hora, o usuário local quando ele existe, a ação, o recurso e uma descrição curta. A tela de referência mostra esses campos.
+Não há `POST`, `PATCH` nem `DELETE` de auditoria. O cliente não grava, corrige nem apaga o histórico por essa rota. A exclusão de empresa não grava `EXCLUIR`. A exclusão do próprio usuário, quando o `sub` do token é o dele, também não grava `EXCLUIR`, para a linha nova não impedir o delete. Consulta não gera linha.
 
-Não há `POST`, `PATCH` nem `DELETE` de auditoria. O cliente não grava, corrige nem apaga o histórico por essa rota. A API registra `CRIAR` e `ATUALIZAR` depois que o cadastro é gravado, e `EXCLUIR` antes de apagar sistema, módulo, menu, submenu, usuário, perfil, permissão ou acesso. A exclusão de uma empresa sem filhos também apaga o histórico dessa empresa e não gera evento `EXCLUIR`. Consulta não gera linha. Login e logout ficam no Keycloak e não entram aqui.
+Login e logout ficam no Keycloak. `DT_LOGIN`, `DT_LOGOUT` e `TM_SSO` permanecem vazios.
 
-A descrição é o nome do cadastro. Na permissão, é o tipo do recurso. No acesso, é a palavra `acesso`. E-mail e `sub` não são gravados. Se o token ainda não tem usuário local, `usuarioId` e `usuarioNome` ficam nulos. Quando o usuário existe, o nome é a cópia daquele momento.
+A consulta exige administrador ativo, com a mesma abertura inicial do restante do cadastro. A resposta traz id, data, usuário, ação, recurso e descrição. Não traz `sub`, e-mail, RG, CPF nem celular.
 
-A empresa da linha é a empresa do recurso alterado. A lista devolve só as empresas que o chamador pode visualizar. Sem nenhum acesso gravado, qualquer token válido vê o histórico.
+## Contrato
 
-## Rotas
-
-Todas exigem Bearer token.
-
-- `GET /v1/auditorias` lista da mais recente para a mais antiga. `?empresaId=`, `?usuarioId=`, `?recursoTipo=`, `?desde=` e `?ate=` podem ser combinados. `desde` e `ate` são datas ISO sobre `ocorridoEm`.
-- `GET /v1/auditorias/:id`
-
-## Erros
-
-| Situação | HTTP | `error` |
-| --- | --- | --- |
-| Evento inexistente | 404 | `audit_not_found` |
-| Evento de uma empresa que o chamador não visualiza | 403 | `forbidden` |
-| Data ou identificador inválido | 400 | `validation_error` |
+- `GET /v1/auditorias` lista do mais novo para o mais antigo. Filtros opcionais: `usuarioId`, `recursoTipo`, `acao`, `desde`, `ate`.
+- `GET /v1/auditorias/:id` lê um evento. Id inexistente responde 404 `audit_not_found`.

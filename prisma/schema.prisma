@@ -1,4 +1,5 @@
-// Hierarquia do ADR-002. O pai é obrigatório e a exclusão fica restrita enquanto houver filhos.
+// Catálogo do stakeholder. Chave inteira, status em t046 e acesso por tela em t052.
+// t047 existe para o schema bater com o script. A API não lê nem grava senha.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,207 +10,298 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum StatusCadastro {
-  ATIVO
-  INATIVO
+model TipoStatus {
+  id             Int              @id @default(autoincrement()) @map("ID_TP_STATUS")
+  nome           String?          @map("DS_STATUS") @db.VarChar(128)
+  criadoEm       DateTime?        @map("DT_INCLUSAO")
+  empresas       Empresa[]
+  sistemas       Sistema[]
+  modulos        Modulo[]
+  menus          Menu[]
+  submenus       Submenu[]
+  usuarios       Usuario[]
+  tiposUsuario   TipoUsuario[]
+  tiposAuditoria TipoAuditoria[]
+  tiposEndereco  TipoEndereco[]
+  contatos       TipoContato[]
+  senhas         UsuarioSenha[]
+  acessos        Acesso[]
+
+  @@map("t046_tp_status")
+}
+
+model TipoUsuario {
+  id       Int         @id @default(autoincrement()) @map("ID_TP_USUARIO")
+  nome     String?     @map("DS_TP_USUARIO") @db.VarChar(128)
+  statusId Int?        @map("ID_TP_STATUS")
+  status   TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm DateTime    @default(now()) @map("DT_INCLUSAO")
+  usuarios Usuario[]
+  acessos  Acesso[]
+
+  @@map("t048_tp_usuarios")
+}
+
+model TipoAuditoria {
+  id       Int         @id @default(autoincrement()) @map("ID_TP_AUDITORIA")
+  nome     String?     @map("DS_TP_AUDITORIA") @db.VarChar(64)
+  nomeLongo String?    @map("DS_TP_LONGA_AUDITORIA") @db.VarChar(128)
+  statusId Int?        @map("ID_TP_STATUS")
+  status   TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm DateTime?   @map("DT_INCLUSAO")
+  eventos  Auditoria[]
+
+  @@map("t050_tp_auditorias")
+}
+
+model TipoEndereco {
+  id        Int         @id @default(autoincrement()) @map("ID_TP_ENDERECO")
+  nome      String?     @map("DS_TP_ENDERECO") @db.VarChar(128)
+  statusId  Int?        @map("ID_TP_STATUS")
+  status    TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm  DateTime    @default(now()) @map("DT_INCLUSAO")
+  enderecos EmpresaEndereco[]
+
+  @@map("t042_tp_enderecos")
 }
 
 model Empresa {
-  id           String         @id @default(uuid()) @db.Char(36)
-  nome         String         @db.VarChar(128)
-  cnpj         String?        @unique @db.VarChar(20)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-  sistemas     Sistema[]
-  usuarios     Usuario[]
-  perfis       Perfil[]
-  permissoes   Permissao[]
-  auditorias   Auditoria[]
+  id               Int           @id @default(autoincrement()) @map("ID_EMPRESA")
+  razaoSocial      String        @map("RAZAO_SOCIAL") @db.VarChar(120)
+  nomeFantasia     String?       @map("DS_NM_FANTASIA") @db.VarChar(128)
+  nomeReduzido     String?       @map("DS_NM_REDUZIDO") @db.VarChar(128)
+  cnpj             String?       @unique @map("CNPJ") @db.VarChar(20)
+  dataConstituicao DateTime?     @map("DT_CONSTITUICAO")
+  statusId         Int?          @map("ID_TP_STATUS")
+  status           TipoStatus?   @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm         DateTime      @default(now()) @map("DT_INCLUSAO")
+  enderecos        EmpresaEndereco[]
+  contatos         TipoContato[]
+  acessos          Acesso[]
+  sistemas         EmpresaSistema[]
 
-  @@map("empresas")
+  @@map("t010_empresas")
+}
+
+// Fora do script do stakeholder: diz quais sistemas cada empresa usa. Ver ADR-004.
+model EmpresaSistema {
+  empresaId Int      @map("ID_EMPRESA")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  sistemaId Int      @map("ID_SISTEMA")
+  sistema   Sistema  @relation(fields: [sistemaId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  criadoEm  DateTime @default(now()) @map("DT_INCLUSAO")
+
+  @@id([empresaId, sistemaId])
+  @@index([sistemaId])
+  @@map("t012_empresas_sistemas")
+}
+
+model EmpresaEndereco {
+  id           Int           @id @map("ID_EMPRESA_ENDERECO")
+  empresaId    Int?          @map("ID_EMPRESA")
+  empresa      Empresa?      @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cep          String?       @map("CEP") @db.Char(10)
+  logradouro   String?       @map("DS_LOGRADOURO") @db.VarChar(128)
+  numero       String?       @map("NÚMERO") @db.Char(10)
+  complemento  String?       @map("DS_COMPLEMENTO") @db.VarChar(128)
+  bairro       String?       @map("DS_BAIRRO") @db.VarChar(128)
+  municipio    String?       @map("DS_MUNICÍPIO") @db.VarChar(128)
+  estado       String?       @map("DS_ESTADO") @db.Char(2)
+  tipoId       Int?          @map("ID_TP_ENDERECO")
+  tipo         TipoEndereco? @relation(fields: [tipoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm     DateTime      @default(now()) @map("DT_INCLUSAO")
+
+  @@map("t011_empresas_enderecos")
+}
+
+model TipoContato {
+  id       Int         @id @default(autoincrement()) @map("ID_TP_CONTATO")
+  empresaId Int?       @map("ID_EMPRESA")
+  empresa  Empresa?    @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tipo     String?     @map("DS_TP_CONTATO") @db.VarChar(128)
+  nome     String?     @map("DS_NM_CONTATO") @db.VarChar(64)
+  statusId Int?        @map("ID_TP_STATUS")
+  status   TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm DateTime    @default(now()) @map("DT_INCLUSAO")
+
+  @@map("t041_tp_contatos")
 }
 
 model Sistema {
-  id           String         @id @default(uuid()) @db.Char(36)
-  empresaId    String         @map("empresa_id") @db.Char(36)
-  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  nome         String         @db.VarChar(128)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-  modulos      Modulo[]
-  permissoes   Permissao[]
-  acessos      Acesso[]
+  id             Int         @id @default(autoincrement()) @map("ID_SISTEMA")
+  nome           String      @unique @map("DS_SISTEMA") @db.VarChar(128)
+  descricaoCurta String?     @map("DS_CURTA") @db.VarChar(64)
+  descricaoLonga String?     @map("DS_LONGA") @db.VarChar(128)
+  statusId       Int?        @map("ID_TP_STATUS")
+  status         TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm       DateTime    @default(now()) @map("DT_INCLUSAO")
+  modulos        Modulo[]
+  acessos        Acesso[]
+  empresas       EmpresaSistema[]
 
-  @@unique([empresaId, nome])
-  @@map("sistemas")
+  @@map("t025_sistemas")
 }
 
 model Modulo {
-  id           String         @id @default(uuid()) @db.Char(36)
-  sistemaId    String         @map("sistema_id") @db.Char(36)
-  sistema      Sistema        @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  nome         String         @db.VarChar(128)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-  menus        Menu[]
-  permissoes   Permissao[]
+  id             Int         @id @default(autoincrement()) @map("ID_MODULO")
+  sistemaId      Int         @map("ID_SISTEMA")
+  sistema        Sistema     @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome           String      @map("DS_MODULO") @db.VarChar(128)
+  descricaoCurta String?     @map("DS_CURTA") @db.VarChar(64)
+  descricaoLonga String?     @map("DS_LONGA") @db.VarChar(128)
+  statusId       Int?        @map("ID_TP_STATUS")
+  status         TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm       DateTime    @default(now()) @map("DT_INCLUSAO")
+  menus          Menu[]
+  acessos        Acesso[]
 
   @@unique([sistemaId, nome])
-  @@map("modulos")
+  @@map("t030_modulos")
 }
 
 model Menu {
-  id           String         @id @default(uuid()) @db.Char(36)
-  moduloId     String         @map("modulo_id") @db.Char(36)
-  modulo       Modulo         @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  nome         String         @db.VarChar(128)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-  submenus     Submenu[]
-  permissoes   Permissao[]
+  id             Int         @id @default(autoincrement()) @map("ID_MENU")
+  moduloId       Int         @map("ID_MODULO")
+  modulo         Modulo      @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome           String      @map("DS_MENU") @db.VarChar(128)
+  descricaoCurta String?     @map("DS_CURTA") @db.VarChar(64)
+  descricaoLonga String?     @map("DS_LONGA") @db.VarChar(128)
+  statusId       Int?        @map("ID_TP_STATUS")
+  status         TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm       DateTime?   @map("DT_INCLUSAO")
+  submenus       Submenu[]
+  acessos        Acesso[]
 
   @@unique([moduloId, nome])
-  @@map("menus")
+  @@map("t035_menus")
 }
 
 model Submenu {
-  id           String         @id @default(uuid()) @db.Char(36)
-  menuId       String         @map("menu_id") @db.Char(36)
-  menu         Menu           @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  nome         String         @db.VarChar(128)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-
-  permissoes   Permissao[]
+  id             Int         @id @default(autoincrement()) @map("ID_SUB_MENU")
+  menuId         Int         @map("ID_MENU")
+  menu           Menu        @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nome           String      @map("DS_SUBMENU") @db.VarChar(128)
+  descricaoCurta String?     @map("DS_CURTA") @db.VarChar(64)
+  descricaoLonga String?     @map("DS_LONGA") @db.VarChar(128)
+  statusId       Int?        @map("ID_TP_STATUS")
+  status         TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm       DateTime?   @map("DT_INCLUSAO")
+  acessos        Acesso[]
 
   @@unique([menuId, nome])
-  @@map("submenus")
+  @@map("t040_submenus")
 }
 
 model Usuario {
-  id           String         @id @default(uuid()) @db.Char(36)
-  keycloakSub  String         @unique @map("keycloak_sub") @db.Char(36)
-  nome         String         @db.VarChar(128)
-  email        String         @unique @db.VarChar(254)
-  empresaId    String         @map("empresa_id") @db.Char(36)
-  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
-  acessos      Acesso[]
+  id           Int          @id @default(autoincrement()) @map("ID_USUARIO")
+  nome         String       @map("DS_NM_USUARIO") @db.VarChar(128)
+  sobrenome    String?      @map("DS_SOBRENOME") @db.VarChar(128)
+  apelido      String?      @map("DS_APELIDO") @db.VarChar(128)
+  rg           String?      @map("RG") @db.Char(15)
+  cpf          String?      @map("CPF") @db.Char(15)
+  email        String?      @unique @map("DS_EMAIL") @db.VarChar(64)
+  celular      String?      @map("CELULAR") @db.VarChar(20)
+  tipoId       Int?         @map("ID_TP_USUARIO")
+  tipo         TipoUsuario? @relation(fields: [tipoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  statusId     Int?         @map("ID_TP_STATUS")
+  status       TipoStatus?  @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  keycloakSub  String?      @unique @map("KEYCLOAK_SUB") @db.Char(36)
+  criadoPorId  Int?         @map("ID_USUARIO_INCLUSAO")
+  criadoPor    Usuario?     @relation("UsuarioInclusao", fields: [criadoPorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criados      Usuario[]    @relation("UsuarioInclusao")
+  criadoEm     DateTime     @default(now()) @map("DT_INCLUSAO")
+  senhas       UsuarioSenha[]
+  acessos      Acesso[]     @relation("AcessoDoUsuario")
   auditorias   Auditoria[]
 
-  @@map("usuarios")
+  @@map("t045_usuarios")
 }
 
-model Perfil {
-  id           String         @id @default(uuid()) @db.Char(36)
-  empresaId    String         @map("empresa_id") @db.Char(36)
-  empresa      Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  nome         String         @db.VarChar(128)
-  descricao    String?        @db.VarChar(512)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+/// Tabela do script. Nenhuma rota lê ou grava estas colunas. O login fica no Keycloak.
+model UsuarioSenha {
+  id       Int         @id @default(autoincrement()) @map("ID_USUARIO_SENHA")
+  usuarioId Int        @default(0) @map("ID_USUARIO")
+  usuario  Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  senha    String?     @map("DS_SENHA") @db.VarChar(256)
+  validaPor Int?       @map("VALIDA_POR") @db.SmallInt
+  hash     String?     @map("HASH") @db.VarChar(256)
+  statusId Int?        @map("ID_TP_STATUS")
+  status   TipoStatus? @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm DateTime    @default(now()) @map("DT_INCLUSAO")
 
-  permissoes   Permissao[]
-  acessos      Acesso[]
-
-  @@unique([empresaId, nome])
-  @@map("perfis")
-}
-
-enum TipoRecurso {
-  SISTEMA
-  MODULO
-  MENU
-  SUBMENU
-  EMPRESA
-}
-
-model Permissao {
-  id          String      @id @default(uuid()) @db.Char(36)
-  perfilId    String      @map("perfil_id") @db.Char(36)
-  perfil      Perfil      @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  recursoTipo TipoRecurso @map("recurso_tipo")
-  sistemaId   String?     @map("sistema_id") @db.Char(36)
-  sistema     Sistema?    @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  moduloId    String?     @map("modulo_id") @db.Char(36)
-  modulo      Modulo?     @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  menuId      String?     @map("menu_id") @db.Char(36)
-  menu        Menu?       @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  submenuId   String?     @map("submenu_id") @db.Char(36)
-  submenu     Submenu?    @relation(fields: [submenuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  empresaId   String?     @map("empresa_id") @db.Char(36)
-  empresa     Empresa?    @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  visualizar  Boolean
-  criar       Boolean
-  editar      Boolean
-  excluir     Boolean
-  criadoEm    DateTime    @default(now()) @map("criado_em")
-  atualizadoEm DateTime   @updatedAt @map("atualizado_em")
-
-  @@unique([perfilId, sistemaId])
-  @@unique([perfilId, moduloId])
-  @@unique([perfilId, menuId])
-  @@unique([perfilId, submenuId])
-  @@unique([perfilId, empresaId])
-  @@map("permissoes")
+  @@map("t047_usuarios_senhas")
 }
 
 model Acesso {
-  id           String         @id @default(uuid()) @db.Char(36)
-  usuarioId    String         @map("usuario_id") @db.Char(36)
-  usuario      Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  perfilId     String         @map("perfil_id") @db.Char(36)
-  perfil       Perfil         @relation(fields: [perfilId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  sistemaId    String         @map("sistema_id") @db.Char(36)
-  sistema      Sistema        @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  status       StatusCadastro @default(ATIVO)
-  criadoEm     DateTime       @default(now()) @map("criado_em")
-  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+  id        Int          @id @default(autoincrement()) @map("ID_USUARIO_ACESSO")
+  usuarioId Int          @map("ID_USUARIO")
+  usuario   Usuario      @relation("AcessoDoUsuario", fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  empresaId Int          @map("ID_EMPRESA")
+  empresa   Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sistemaId Int          @map("ID_SISTEMA")
+  sistema   Sistema      @relation(fields: [sistemaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  moduloId  Int          @map("ID_MODULO")
+  modulo    Modulo       @relation(fields: [moduloId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  menuId    Int          @map("ID_MENU")
+  menu      Menu         @relation(fields: [menuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submenuId Int          @map("ID_SUB_MENU")
+  submenu   Submenu      @relation(fields: [submenuId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tipoId    Int?         @map("ID_TP_USUARIO")
+  tipo      TipoUsuario? @relation(fields: [tipoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  statusId  Int?         @map("ID_TP_STATUS")
+  status    TipoStatus?  @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  criadoEm  DateTime     @default(now()) @map("DT_INCLUSAO")
 
-  @@unique([usuarioId, sistemaId])
-  @@map("acessos")
-}
-
-enum AcaoAuditoria {
-  CRIAR
-  ATUALIZAR
-  EXCLUIR
-}
-
-enum RecursoAuditoria {
-  EMPRESA
-  SISTEMA
-  MODULO
-  MENU
-  SUBMENU
-  USUARIO
-  PERFIL
-  PERMISSAO
-  ACESSO
+  @@unique([usuarioId, submenuId])
+  @@map("t052_usuarios_acessos")
 }
 
 model Auditoria {
-  id           String            @id @default(uuid()) @db.Char(36)
-  ocorridoEm   DateTime          @default(now()) @map("ocorrido_em")
-  usuarioId    String?           @map("usuario_id") @db.Char(36)
-  usuario      Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  usuarioNome  String?           @map("usuario_nome") @db.VarChar(128)
-  acao         AcaoAuditoria
-  recursoTipo  RecursoAuditoria  @map("recurso_tipo")
-  recursoId    String            @map("recurso_id") @db.Char(36)
-  descricao    String            @db.VarChar(512)
-  empresaId    String            @map("empresa_id") @db.Char(36)
-  empresa      Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  id          Int            @id @default(autoincrement()) @map("ID_AUDITORIA")
+  usuarioId   Int?           @map("ID_USUARIO")
+  usuario     Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tipoId      Int?           @map("ID_TP_AUDITORIA")
+  tipo        TipoAuditoria? @relation(fields: [tipoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  descricao   String?        @map("DS_AUDITORIA") @db.VarChar(128)
+  descricaoCurta String?     @map("DS_CURTA") @db.VarChar(64)
+  descricaoLonga String?     @map("DS_LONGA") @db.VarChar(128)
+  loginEm     DateTime?      @map("DT_LOGIN")
+  logoutEm    DateTime?      @map("DT_LOGOUT")
+  ssoEm       DateTime?      @map("TM_SSO")
+  criadoEm    DateTime       @default(now()) @map("DT_INCLUSAO")
 
-  @@index([empresaId, ocorridoEm])
   @@index([usuarioId])
-  @@map("auditorias")
+  @@map("t070_auditorias")
+}
+
+model Estado {
+  id      Int      @id @default(autoincrement()) @map("ID_ESTADO")
+  uf      String   @unique @map("DS_UF") @db.Char(2)
+  nome    String   @map("DS_NOME") @db.VarChar(50)
+  cidades Cidade[]
+
+  @@map("t074_estados")
+}
+
+model Cidade {
+  id        Int     @id @default(autoincrement()) @map("ID_CIDADE")
+  nome      String  @map("DS_NOME") @db.VarChar(100)
+  estadoId  Int     @map("ID_ESTADO")
+  estado    Estado  @relation(fields: [estadoId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  ibgeCodigo Int?   @map("IBGE_CODIGO")
+  ceps      Cep[]
+
+  @@index([nome])
+  @@map("t076_cidades")
+}
+
+model Cep {
+  cep        String  @id @map("CEP") @db.Char(8)
+  logradouro String  @map("DS_LOGRADOURO") @db.VarChar(150)
+  bairro     String? @map("DS_BAIRRO") @db.VarChar(100)
+  cidadeId   Int     @map("ID_CIDADE")
+  cidade     Cidade  @relation(fields: [cidadeId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@index([bairro])
+  @@map("t072_ceps")
 }

@@ -1,28 +1,34 @@
 # Acessos
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
+Um acesso é uma linha em `t052_usuarios_acessos`: usuário, empresa, sistema, módulo, menu e submenu. Poder abrir a tela é ter essa linha com status `ATIVADO`.
 
-Um acesso liga um usuário de negócio a um perfil dentro de um sistema. Os três precisam ser da mesma empresa. O par usuário + sistema é único: outro sistema da mesma empresa pode receber outro perfil. Usuário e sistema não mudam depois da criação. Trocar o perfil exige que o novo perfil seja da mesma empresa. `DELETE /v1/acessos/:id` remove o vínculo. `status: "INATIVO"` no PATCH tira o vínculo de uso sem apagar a linha.
+O caminho principal de gravar tela é `telas` no cadastro do usuário. `POST /v1/acessos` acrescenta uma tela. `PATCH` muda só o status. `DELETE` remove a linha. O par usuário + submenu não se repete.
 
-Esta rota grava o vínculo. O primeiro acesso ativo liga a autorização descrita em `autorizacao.md`.
+A cadeia tem de fechar: o submenu pertence ao menu, o menu ao módulo e o módulo ao sistema. Combinação quebrada responde 400 `incoherent_screen`.
 
-## Rotas
+`GET /v1/acessos` exige `usuarioId`. O próprio usuário ativo lê as suas linhas. O administrador que o criou também.
 
-Todas exigem Bearer token.
+## Contrato
 
-- `POST /v1/acessos` com `{ "usuarioId", "perfilId", "sistemaId", "status?" }`. Sem status, o padrão é `ATIVO`. Resposta `201`.
-- `GET /v1/acessos` lista por sistema e usuário. `?usuarioId=` e `?sistemaId=` podem ser usados juntos ou separados.
-- `GET /v1/acessos/:id`
-- `PATCH /v1/acessos/:id` altera ao menos um campo entre `perfilId` e `status`.
+```json
+{
+  "usuarioId": 2,
+  "empresaId": 1,
+  "sistemaId": 1,
+  "moduloId": 1,
+  "menuId": 1,
+  "submenuId": 1
+}
+```
+
+Sem status, o padrão é `ATIVADO`. O tipo da linha segue o tipo do usuário. Resposta `201`.
 
 ## Erros
 
-| Situação | HTTP | `error` |
-| --- | --- | --- |
+| Situação | HTTP | Corpo |
+|---|---|---|
 | Usuário inexistente | 404 | `user_not_found` |
-| Perfil inexistente | 404 | `profile_not_found` |
-| Sistema inexistente | 404 | `system_not_found` |
-| Acesso inexistente | 404 | `access_not_found` |
-| O usuário já tem acesso nesse sistema | 409 | `access_conflict` |
-| Usuário, perfil ou sistema de empresas diferentes | 409 | `access_company_mismatch` |
-| JSON inválido ou corpo vazio | 400 | `validation_error` |
+| Nó da cadeia inexistente | 404 | `company_not_found`, `system_not_found`, `module_not_found`, `menu_not_found` ou `submenu_not_found` |
+| Cadeia incoerente | 400 | `incoherent_screen` |
+| A mesma tela já concedida | 409 | `access_conflict` |
+| Quem chama não administra esse usuário | 403 | `forbidden` |

@@ -41,7 +41,52 @@ fi
   -s registrationAllowed=false \
   -s resetPasswordAllowed=true \
   -s loginWithEmailAllowed=true \
-  -s editUsernameAllowed=true
+  -s editUsernameAllowed=true \
+  -s 'passwordPolicy=length(8) and maxLength(128) and notEmail'
+
+# O CCA só grava o nome. Sobrenome obrigatório faria o Keycloak pedir o perfil no primeiro login.
+profile_file="$(mktemp)"
+cat > "$profile_file" <<'JSON'
+{
+  "attributes": [
+    {
+      "name": "username",
+      "displayName": "${username}",
+      "validations": { "length": { "min": 3, "max": 255 }, "username-prohibited-characters": {}, "up-username-not-idn-homograph": {} },
+      "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+      "multivalued": false
+    },
+    {
+      "name": "email",
+      "displayName": "${email}",
+      "validations": { "email": {}, "length": { "max": 255 } },
+      "required": { "roles": ["user"] },
+      "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+      "multivalued": false
+    },
+    {
+      "name": "firstName",
+      "displayName": "${firstName}",
+      "validations": { "length": { "max": 255 }, "person-name-prohibited-characters": {} },
+      "required": { "roles": ["user"] },
+      "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+      "multivalued": false
+    },
+    {
+      "name": "lastName",
+      "displayName": "${lastName}",
+      "validations": { "length": { "max": 255 }, "person-name-prohibited-characters": {} },
+      "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+      "multivalued": false
+    }
+  ],
+  "groups": [
+    { "name": "user-metadata", "displayHeader": "User metadata", "displayDescription": "Attributes, which refer to user metadata" }
+  ]
+}
+JSON
+"${KCADM[@]}" update users/profile -r "$REALM" -f "$profile_file" >/dev/null
+rm -f "$profile_file"
 
 client_uuid() {
   local output line uuid=""

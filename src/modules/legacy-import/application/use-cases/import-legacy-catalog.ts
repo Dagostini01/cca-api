@@ -1,5 +1,5 @@
 import type { AccessRepository } from '../../../accesses/application/ports/access-repository.js';
-import type { Access } from '../../../accesses/domain/access.js';
+import type { ScreenAccess } from '../../../accesses/domain/access.js';
 import type { AuditRecorder } from '../../../audits/application/ports/audit-recorder.js';
 import type { AuditResource } from '../../../audits/domain/audit.js';
 import type { CompanyRepository } from '../../../companies/application/ports/company-repository.js';
@@ -8,11 +8,6 @@ import { InvalidCompanyDocumentError, InvalidCompanyNameError } from '../../../c
 import type { MenuRepository } from '../../../menus/application/ports/menu-repository.js';
 import { menuNamesConflict, normalizeMenuName, type Menu } from '../../../menus/domain/menu.js';
 import { InvalidMenuNameError } from '../../../menus/domain/menu-errors.js';
-import type { PermissionRepository } from '../../../permissions/application/ports/permission-repository.js';
-import type { Permission } from '../../../permissions/domain/permission.js';
-import type { ProfileRepository } from '../../../profiles/application/ports/profile-repository.js';
-import { normalizeProfileName, profileNamesConflict, type Profile } from '../../../profiles/domain/profile.js';
-import { InvalidProfileNameError } from '../../../profiles/domain/profile-errors.js';
 import type { ModuleRepository } from '../../../system-modules/application/ports/module-repository.js';
 import { moduleNamesConflict, normalizeModuleName, type Module } from '../../../system-modules/domain/module.js';
 import { InvalidModuleNameError } from '../../../system-modules/domain/module-errors.js';
@@ -22,12 +17,12 @@ import { InvalidSubmenuNameError } from '../../../submenus/domain/submenu-errors
 import type { SystemRepository } from '../../../systems/application/ports/system-repository.js';
 import { normalizeSystemName, systemNamesConflict, type System } from '../../../systems/domain/system.js';
 import { InvalidSystemNameError } from '../../../systems/domain/system-errors.js';
+import type { UserType } from '../../../../shared/catalog/status.js';
 import type { IdentityDirectory } from '../../../users/application/ports/identity-directory.js';
 import type { UserRepository } from '../../../users/application/ports/user-repository.js';
-import { normalizeKeycloakSubject, normalizeUserEmail, normalizeUserName, type BusinessUser } from '../../../users/domain/user.js';
+import { normalizeKeycloakSubject, normalizeUserEmail, normalizeUserName } from '../../../users/domain/user.js';
 import { InvalidUserEmailError, InvalidUserNameError, InvalidUserSubjectError } from '../../../users/domain/user-errors.js';
 import type { ImportCounts, LegacyCatalog, LegacyImportReport, LegacyNode, LegacyStatus } from '../../domain/legacy-catalog.js';
-import { LegacySystemOwnerUnknownError } from '../../domain/legacy-import-error.js';
 
 export type LegacySubjectLink = {
   email: string;
@@ -40,47 +35,37 @@ export type ImportLegacyCatalogDependencies = {
   modules: ModuleRepository;
   menus: MenuRepository;
   submenus: SubmenuRepository;
-  profiles: ProfileRepository;
   users?: UserRepository;
-  permissions?: PermissionRepository;
   accesses?: AccessRepository;
   directory?: IdentityDirectory;
   audits?: AuditRecorder;
 };
 
-type Placed = { id: string; nome: string };
+type Named = { id: number; nome: string };
 
 export class ImportLegacyCatalog {
   constructor(private readonly dependencies: ImportLegacyCatalogDependencies) {}
 
   async execute(catalog: LegacyCatalog, actorSubject?: string, links: LegacySubjectLink[] = []): Promise<LegacyImportReport> {
     const report = emptyReport(catalog.senhasIgnoradas);
-    const owners = systemOwners(catalog);
     const companies = await this.dependencies.companies.list();
-    const companyIds = new Map<number, string>();
+    const companyIds = new Map<number, number>();
     for (const source of catalog.companies) {
       const placed = await this.placeCompany(source, catalog.statuses, companies, report, actorSubject);
       if (placed) companyIds.set(source.id, placed.id);
     }
 
     const systems = await this.dependencies.systems.list();
-    const systemIds = new Map<string, string>();
+    const systemIds = new Map<number, number>();
     for (const source of catalog.systems) {
-      for (const legacyCompanyId of owners.get(source.id) ?? []) {
-        const empresaId = companyIds.get(legacyCompanyId);
-        if (!empresaId) {
-          report.sistemas.ignoradas += 1;
-          continue;
-        }
-        const placed = await this.placeNode(source, empresaId, catalog.statuses, systems, report.sistemas, 'SISTEMA', actorSubject, {
-          normalize: normalizeSystemName,
-          invalid: InvalidSystemNameError,
-          conflicts: systemNamesConflict,
-          parentId: (item) => item.empresaId,
-          add: (nome, status) => this.dependencies.systems.add({ empresaId, nome, status }),
-        });
-        if (placed) systemIds.set(pair(source.id, empresaId), placed.id);
-      }
+      const placed = await this.placeNode(source, null, catalog.statuses, systems, report.sistemas, 'SISTEMA', actorSubject, {
+        normalize: normalizeSystemName,
+        invalid: InvalidSystemNameError,
+        conflicts: systemNamesConflict,
+        parentId: () => null,
+        add: (nome, status) => this.dependencies.systems.add({ nome, descricaoCurta: null, descricaoLonga: null, status }),
+      });
+      if (placed) systemIds.set(source.id, placed.id);
     }
 
     const modules = await this.dependencies.modules.list();
@@ -89,7 +74,7 @@ export class ImportLegacyCatalog {
       invalid: InvalidModuleNameError,
       conflicts: moduleNamesConflict,
       parentId: (item) => item.sistemaId,
-      add: (parentId, nome, status) => this.dependencies.modules.add({ sistemaId: parentId, nome, status }),
+      add: (parentId, nome, status) => this.dependencies.modules.add({ sistemaId: parentId, nome, descricaoCurta: null, descricaoLonga: null, status }),
     });
     const menus = await this.dependencies.menus.list();
     const menuIds = await this.placeChildren(catalog.menus, catalog.statuses, moduleIds, menus, report.menus, 'MENU', actorSubject, {
@@ -97,7 +82,7 @@ export class ImportLegacyCatalog {
       invalid: InvalidMenuNameError,
       conflicts: menuNamesConflict,
       parentId: (item) => item.moduloId,
-      add: (parentId, nome, status) => this.dependencies.menus.add({ moduloId: parentId, nome, status }),
+      add: (parentId, nome, status) => this.dependencies.menus.add({ moduloId: parentId, nome, descricaoCurta: null, descricaoLonga: null, status }),
     });
     const submenus = await this.dependencies.submenus.list();
     const submenuIds = await this.placeChildren(catalog.submenus, catalog.statuses, menuIds, submenus, report.submenus, 'SUBMENU', actorSubject, {
@@ -105,39 +90,28 @@ export class ImportLegacyCatalog {
       invalid: InvalidSubmenuNameError,
       conflicts: submenuNamesConflict,
       parentId: (item) => item.menuId,
-      add: (parentId, nome, status) => this.dependencies.submenus.add({ menuId: parentId, nome, status }),
+      add: (parentId, nome, status) => this.dependencies.submenus.add({ menuId: parentId, nome, descricaoCurta: null, descricaoLonga: null, status }),
     });
 
-    const profiles = await this.dependencies.profiles.list();
-    const profileIds = new Map<string, string>();
-    for (const empresaId of companyIds.values()) {
-      for (const source of catalog.profiles) {
-        const placed = await this.placeProfile(source, empresaId, catalog.statuses, profiles, report, actorSubject);
-        if (placed) profileIds.set(pair(source.id, empresaId), placed.id);
-      }
-    }
-
-    const users = this.dependencies.users ? await this.dependencies.users.list() : [];
-    const userIds = new Map<string, string>();
+    const actor = actorSubject && this.dependencies.users ? await this.dependencies.users.findBySubject(actorSubject) : null;
+    const userIds = new Map<string, number>();
     for (const source of catalog.users) {
-      const placed = await this.placeUser(source, catalog, companyIds, links, users, report, actorSubject);
+      const placed = await this.placeUser(source, catalog, links, report, actorSubject, actor?.id ?? null);
       if (placed && source.email) userIds.set(source.email.trim().toLowerCase(), placed.id);
     }
 
-    if (this.dependencies.permissions && this.dependencies.accesses) {
-      const permissions = await this.dependencies.permissions.list();
+    if (this.dependencies.accesses) {
       const accesses = await this.dependencies.accesses.list();
       for (const source of catalog.accesses) {
-        await this.placeAccess(source, catalog.statuses, companyIds, systemIds, submenuIds, profileIds, userIds, permissions, accesses, report, actorSubject);
+        await this.placeAccess(source, catalog, companyIds, systemIds, moduleIds, menuIds, submenuIds, userIds, accesses, report, actorSubject);
       }
     } else {
       report.acessos.ignoradas += catalog.accesses.length;
-      report.permissoes.ignoradas += catalog.accesses.length;
     }
     return report;
   }
 
-  private async placeCompany(source: LegacyCatalog['companies'][number], statuses: LegacyStatus[], companies: Company[], report: LegacyImportReport, actorSubject?: string): Promise<Placed | null> {
+  private async placeCompany(source: LegacyCatalog['companies'][number], statuses: LegacyStatus[], companies: Company[], report: LegacyImportReport, actorSubject?: string): Promise<{ id: number } | null> {
     let nome: string;
     try {
       nome = normalizeCompanyName(source.nome);
@@ -157,21 +131,28 @@ export class ImportLegacyCatalog {
         report.documentosIgnorados += 1;
       }
     }
-    const existing = companies.find((company) => (cnpj !== null && company.cnpj === cnpj) || sameLabel(company.nome, nome));
+    const existing = companies.find((company) => (cnpj !== null && company.cnpj === cnpj) || sameLabel(company.razaoSocial, nome));
     if (existing) {
       report.empresas.existentes += 1;
       return existing;
     }
-    const created = await this.dependencies.companies.add({ nome, cnpj, status: statusFrom(statuses, source.statusId) });
+    const created = await this.dependencies.companies.add({
+      razaoSocial: nome,
+      nomeFantasia: null,
+      nomeReduzido: null,
+      cnpj,
+      dataConstituicao: null,
+      status: statusFrom(statuses, source.statusId),
+    });
     companies.push(created);
     report.empresas.criadas += 1;
-    await this.record(actorSubject, 'EMPRESA', created.id, created.nome);
+    await this.record(actorSubject, 'EMPRESA', created.id, created.razaoSocial);
     return created;
   }
 
-  private async placeNode<T extends Placed>(
+  private async placeNode<T extends Named>(
     source: LegacyNode,
-    parentId: string,
+    parentId: number | null,
     statuses: LegacyStatus[],
     current: T[],
     counts: ImportCounts,
@@ -181,10 +162,10 @@ export class ImportLegacyCatalog {
       normalize: (nome: string) => string;
       invalid: new () => Error;
       conflicts: (left: string, right: string) => boolean;
-      parentId: (item: T) => string;
+      parentId: (item: T) => number | null;
       add: (nome: string, status: CompanyStatus) => Promise<T>;
     },
-  ): Promise<Placed | null> {
+  ): Promise<Named | null> {
     let nome: string;
     try {
       nome = behavior.normalize(source.nome);
@@ -207,10 +188,10 @@ export class ImportLegacyCatalog {
     return created;
   }
 
-  private async placeChildren<T extends Placed>(
+  private async placeChildren<T extends Named>(
     sources: LegacyNode[],
     statuses: LegacyStatus[],
-    parents: Map<string, string>,
+    parents: Map<number, number>,
     current: T[],
     counts: ImportCounts,
     resource: AuditResource,
@@ -219,61 +200,34 @@ export class ImportLegacyCatalog {
       normalize: (nome: string) => string;
       invalid: new () => Error;
       conflicts: (left: string, right: string) => boolean;
-      parentId: (item: T) => string;
-      add: (parentId: string, nome: string, status: CompanyStatus) => Promise<T>;
+      parentId: (item: T) => number | null;
+      add: (parentId: number, nome: string, status: CompanyStatus) => Promise<T>;
     },
-  ): Promise<Map<string, string>> {
-    const ids = new Map<string, string>();
+  ): Promise<Map<number, number>> {
+    const ids = new Map<number, number>();
     for (const source of sources) {
-      const matches = [...parents.entries()].filter(([parentKey]) => parentKey.startsWith(`${source.parentId}:`));
-      if (source.parentId === null || matches.length === 0) {
+      const parentId = source.parentId === null ? undefined : parents.get(source.parentId);
+      if (parentId === undefined) {
         counts.ignoradas += 1;
         continue;
       }
-      for (const [parentKey, parentId] of matches) {
-        const empresaId = parentKey.slice(parentKey.indexOf(':') + 1);
-        const placed = await this.placeNode(source, parentId, statuses, current, counts, resource, actorSubject, {
-          ...behavior,
-          add: (nome, status) => behavior.add(parentId, nome, status),
-        });
-        if (placed) ids.set(pair(source.id, empresaId), placed.id);
-      }
+      const placed = await this.placeNode(source, parentId, statuses, current, counts, resource, actorSubject, {
+        ...behavior,
+        add: (nome, status) => behavior.add(parentId, nome, status),
+      });
+      if (placed) ids.set(source.id, placed.id);
     }
     return ids;
-  }
-
-  private async placeProfile(source: LegacyCatalog['profiles'][number], empresaId: string, statuses: LegacyStatus[], profiles: Profile[], report: LegacyImportReport, actorSubject?: string): Promise<Placed | null> {
-    let nome: string;
-    try {
-      nome = normalizeProfileName(source.nome);
-    } catch (error) {
-      if (error instanceof InvalidProfileNameError) {
-        report.perfis.ignoradas += 1;
-        return null;
-      }
-      throw error;
-    }
-    const existing = profiles.find((profile) => profile.empresaId === empresaId && profileNamesConflict(profile.nome, nome));
-    if (existing) {
-      report.perfis.existentes += 1;
-      return existing;
-    }
-    const created = await this.dependencies.profiles.add({ empresaId, nome, descricao: null, status: statusFrom(statuses, source.statusId) });
-    profiles.push(created);
-    report.perfis.criadas += 1;
-    await this.record(actorSubject, 'PERFIL', created.id, created.nome);
-    return created;
   }
 
   private async placeUser(
     source: LegacyCatalog['users'][number],
     catalog: LegacyCatalog,
-    companyIds: Map<number, string>,
     links: LegacySubjectLink[],
-    users: BusinessUser[],
     report: LegacyImportReport,
-    actorSubject?: string,
-  ): Promise<Placed | null> {
+    actorSubject: string | undefined,
+    criadoPorId: number | null,
+  ): Promise<Named | null> {
     if (!this.dependencies.users) {
       report.usuarios.ignoradas += 1;
       return null;
@@ -291,16 +245,12 @@ export class ImportLegacyCatalog {
       }
       throw error;
     }
-    const empresaId = companyForUser(email, catalog, companyIds);
-    if (!empresaId) {
-      report.usuarios.ignoradas += 1;
-      return null;
-    }
-    const existing = users.find((user) => user.email === email);
+    const existing = await this.dependencies.users.findByEmail(email);
     if (existing) {
       report.usuarios.existentes += 1;
       return existing;
     }
+    const status = statusFrom(catalog.statuses, source.statusId);
     const linked = links.find((link) => link.email.trim().toLowerCase() === email);
     let keycloakSub: string | null = null;
     try {
@@ -308,7 +258,7 @@ export class ImportLegacyCatalog {
         keycloakSub = normalizeKeycloakSubject(linked.keycloakSub);
         if (this.dependencies.directory) await this.dependencies.directory.assertExists(keycloakSub);
       } else if (this.dependencies.directory) {
-        const provisioned = await this.dependencies.directory.provision({ nome, email, enabled: statusFrom(catalog.statuses, source.statusId) === 'ATIVO' });
+        const provisioned = await this.dependencies.directory.provision({ nome, email, enabled: status === 'ATIVADO' });
         keycloakSub = normalizeKeycloakSubject(provisioned.id);
       }
     } catch (error) {
@@ -322,8 +272,19 @@ export class ImportLegacyCatalog {
       report.usuarios.ignoradas += 1;
       return null;
     }
-    const created = await this.dependencies.users.add({ keycloakSub, nome, email, empresaId, status: statusFrom(catalog.statuses, source.statusId) });
-    users.push(created);
+    const created = await this.dependencies.users.add({
+      keycloakSub,
+      nome,
+      sobrenome: null,
+      apelido: null,
+      rg: null,
+      cpf: null,
+      email,
+      celular: null,
+      tipo: userTypeFrom(catalog, source.perfilId),
+      status,
+      criadoPorId,
+    });
     report.usuarios.criadas += 1;
     await this.record(actorSubject, 'USUARIO', created.id, created.nome);
     return created;
@@ -331,84 +292,66 @@ export class ImportLegacyCatalog {
 
   private async placeAccess(
     source: LegacyCatalog['accesses'][number],
-    statuses: LegacyStatus[],
-    companyIds: Map<number, string>,
-    systemIds: Map<string, string>,
-    submenuIds: Map<string, string>,
-    profileIds: Map<string, string>,
-    userIds: Map<string, string>,
-    permissions: Permission[],
-    accesses: Access[],
+    catalog: LegacyCatalog,
+    companyIds: Map<number, number>,
+    systemIds: Map<number, number>,
+    moduleIds: Map<number, number>,
+    menuIds: Map<number, number>,
+    submenuIds: Map<number, number>,
+    userIds: Map<string, number>,
+    accesses: ScreenAccess[],
     report: LegacyImportReport,
     actorSubject?: string,
   ) {
+    const submenu = source.submenuId === null ? undefined : catalog.submenus.find((item) => item.id === source.submenuId);
+    const menu = submenu?.parentId == null ? undefined : catalog.menus.find((item) => item.id === submenu.parentId);
+    const module = menu?.parentId == null ? undefined : catalog.modules.find((item) => item.id === menu.parentId);
     const empresaId = source.empresaId === null ? undefined : companyIds.get(source.empresaId);
+    const sistemaId = source.sistemaId === null ? undefined : systemIds.get(source.sistemaId);
+    const moduloId = module ? moduleIds.get(module.id) : undefined;
+    const menuId = menu ? menuIds.get(menu.id) : undefined;
+    const submenuId = submenu ? submenuIds.get(submenu.id) : undefined;
     const usuarioId = source.email ? userIds.get(source.email.trim().toLowerCase()) : undefined;
-    const sistemaId = empresaId && source.sistemaId !== null ? systemIds.get(pair(source.sistemaId, empresaId)) : undefined;
-    const submenuId = empresaId && source.submenuId !== null ? submenuIds.get(pair(source.submenuId, empresaId)) : undefined;
-    const perfilId = empresaId && source.perfilId !== null ? profileIds.get(pair(source.perfilId, empresaId)) : undefined;
-    if (!usuarioId || !sistemaId || !submenuId || !perfilId || !this.dependencies.permissions || !this.dependencies.accesses) {
+    const chainMatches = module?.parentId === source.sistemaId;
+    if (!this.dependencies.accesses || !usuarioId || !empresaId || !sistemaId || !moduloId || !menuId || !submenuId || !chainMatches) {
       report.acessos.ignoradas += 1;
-      report.permissoes.ignoradas += 1;
       return;
     }
-    const permission = permissions.find((item) => item.perfilId === perfilId && item.recursoTipo === 'SUBMENU' && item.recursoId === submenuId);
-    if (permission) report.permissoes.existentes += 1;
-    else {
-      const created = await this.dependencies.permissions.add({
-        perfilId,
-        recursoTipo: 'SUBMENU',
-        recursoId: submenuId,
-        visualizar: true,
-        criar: false,
-        editar: false,
-        excluir: false,
-      });
-      permissions.push(created);
-      report.permissoes.criadas += 1;
-      await this.record(actorSubject, 'PERMISSAO', created.id, 'SUBMENU');
-    }
-    const access = accesses.find((item) => item.usuarioId === usuarioId && item.sistemaId === sistemaId);
-    if (access) {
+    await this.dependencies.systems.linkCompany(sistemaId, empresaId);
+    const existing = accesses.find((item) => item.usuarioId === usuarioId && item.submenuId === submenuId);
+    if (existing) {
       report.acessos.existentes += 1;
       return;
     }
-    const created = await this.dependencies.accesses.add({ usuarioId, perfilId, sistemaId, status: statusFrom(statuses, source.statusId) });
+    const created = await this.dependencies.accesses.add({
+      usuarioId,
+      empresaId,
+      sistemaId,
+      moduloId,
+      menuId,
+      submenuId,
+      tipo: userTypeFrom(catalog, source.perfilId),
+      status: statusFrom(catalog.statuses, source.statusId),
+    });
     accesses.push(created);
     report.acessos.criadas += 1;
     await this.record(actorSubject, 'ACESSO', created.id, 'acesso');
   }
 
-  private async record(subject: string | undefined, recursoTipo: AuditResource, recursoId: string, descricao: string) {
+  private async record(subject: string | undefined, recursoTipo: AuditResource, recursoId: number, descricao: string) {
     if (!subject || !this.dependencies.audits) return;
     await this.dependencies.audits.record({ subject, acao: 'CRIAR', recursoTipo, recursoId, descricao });
   }
 }
 
-function systemOwners(catalog: LegacyCatalog): Map<number, number[]> {
-  const owners = new Map<number, number[]>();
-  for (const system of catalog.systems) {
-    const linked = [...new Set(catalog.accesses.flatMap((access) => access.sistemaId === system.id && access.empresaId !== null ? [access.empresaId] : []))];
-    const chosen = linked.length > 0 ? linked : catalog.companies.length === 1 && catalog.companies[0] ? [catalog.companies[0].id] : [];
-    if (chosen.length === 0) throw new LegacySystemOwnerUnknownError();
-    owners.set(system.id, chosen);
-  }
-  return owners;
-}
-
-function companyForUser(email: string, catalog: LegacyCatalog, companyIds: Map<number, string>): string | undefined {
-  const linked = [...new Set(catalog.accesses.flatMap((access) => (access.email ?? '').trim().toLowerCase() === email && access.empresaId !== null ? [access.empresaId] : []))];
-  const legacyId = linked.length === 1 ? linked[0] : linked.length === 0 && catalog.companies.length === 1 ? catalog.companies[0]?.id : undefined;
-  return legacyId === undefined ? undefined : companyIds.get(legacyId);
+function userTypeFrom(catalog: LegacyCatalog, perfilId: number | null): UserType {
+  const nome = catalog.profiles.find((profile) => profile.id === perfilId)?.nome ?? '';
+  return nome.trim().toLocaleUpperCase('pt-BR').startsWith('ADMIN') ? 'ADMINITRADOR' : 'SUPERVISOR';
 }
 
 function statusFrom(statuses: LegacyStatus[], statusId: number | null): CompanyStatus {
   const label = statuses.find((status) => status.id === statusId)?.nome ?? '';
-  return label.trim().toLocaleLowerCase('pt-BR').startsWith('ativ') ? 'ATIVO' : 'INATIVO';
-}
-
-function pair(legacyId: number, parentId: string): string {
-  return `${legacyId}:${parentId}`;
+  return label.trim().toLocaleLowerCase('pt-BR').startsWith('ativ') ? 'ATIVADO' : 'DESATIVADO';
 }
 
 function sameLabel(left: string, right: string): boolean {
@@ -426,9 +369,7 @@ function emptyReport(senhasIgnoradas: number): LegacyImportReport {
     modulos: emptyCounts(),
     menus: emptyCounts(),
     submenus: emptyCounts(),
-    perfis: emptyCounts(),
     usuarios: emptyCounts(),
-    permissoes: emptyCounts(),
     acessos: emptyCounts(),
     documentosIgnorados: 0,
     senhasIgnoradas,

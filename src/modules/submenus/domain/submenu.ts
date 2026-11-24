@@ -1,16 +1,18 @@
+import type { CatalogStatus } from '../../../shared/catalog/status.js';
 import { InvalidSubmenuNameError } from './submenu-errors.js';
 
 export const SUBMENU_NAME_MAX_LENGTH = 128;
 
-export type SubmenuStatus = 'ATIVO' | 'INATIVO';
+export type SubmenuStatus = CatalogStatus;
 
 export type Submenu = {
-  id: string;
-  menuId: string;
+  id: number;
+  menuId: number;
   nome: string;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
   status: SubmenuStatus;
   criadoEm: Date;
-  atualizadoEm: Date;
 };
 
 export function normalizeSubmenuName(nome: string): string {

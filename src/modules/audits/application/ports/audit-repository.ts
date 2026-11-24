@@ -1,26 +1,29 @@
 import type { AuditAction, AuditEntry, AuditResource } from '../../domain/audit.js';
 
 export type NewAuditEntry = {
-  ocorridoEm: Date;
-  usuarioId: string | null;
-  usuarioNome: string | null;
+  usuarioId: number | null;
   acao: AuditAction;
   recursoTipo: AuditResource;
-  recursoId: string;
   descricao: string;
-  empresaId: string;
 };
 
 export type AuditListFilter = {
-  empresaId?: string;
-  usuarioId?: string;
+  usuarioId?: number;
   recursoTipo?: AuditResource;
+  acao?: AuditAction;
   desde?: Date;
   ate?: Date;
+  q?: string;
+};
+
+export type AuditPageQuery = AuditListFilter & {
+  pagina: number;
+  tamanho: number;
 };
 
 export interface AuditRepository {
   add(entry: NewAuditEntry): Promise<AuditEntry>;
   list(filter?: AuditListFilter): Promise<AuditEntry[]>;
-  findById(id: string): Promise<AuditEntry | null>;
+  page(query: AuditPageQuery): Promise<{ rows: AuditEntry[]; total: number }>;
+  findById(id: number): Promise<AuditEntry | null>;
 }

@@ -1,35 +1,47 @@
 import { z } from 'zod';
+import { CATALOG_STATUSES } from '../../../../../shared/catalog/status.js';
+import { LONG_TEXT_MAX_LENGTH, SHORT_TEXT_MAX_LENGTH } from '../../../../../shared/catalog/text.js';
+import { entityIdParamSchema, entityIdSchema } from '../../../../../shared/http/entity-id.js';
+import { catalogSearchQuerySchema } from '../../../../../shared/http/page.js';
 import { SUBMENU_NAME_MAX_LENGTH } from '../../../domain/submenu.js';
 
-const submenuStatusSchema = z.enum(['ATIVO', 'INATIVO']);
+const statusSchema = z.enum(CATALOG_STATUSES);
+const shortText = z.string().trim().max(SHORT_TEXT_MAX_LENGTH).nullable();
+const longText = z.string().trim().max(LONG_TEXT_MAX_LENGTH).nullable();
 
 export const createSubmenuBodySchema = z.object({
   nome: z.string().trim().min(1).max(SUBMENU_NAME_MAX_LENGTH),
-  menuId: z.string().uuid(),
-  status: submenuStatusSchema.optional(),
+  menuId: entityIdSchema,
+  descricaoCurta: shortText.optional(),
+  descricaoLonga: longText.optional(),
+  status: statusSchema.optional(),
 }).strict();
 
 export const updateSubmenuBodySchema = z.object({
   nome: z.string().trim().min(1).max(SUBMENU_NAME_MAX_LENGTH).optional(),
-  menuId: z.string().uuid().optional(),
-  status: submenuStatusSchema.optional(),
-}).strict().refine((body) => body.nome !== undefined || body.menuId !== undefined || body.status !== undefined, {
+  menuId: entityIdSchema.optional(),
+  descricaoCurta: shortText.optional(),
+  descricaoLonga: longText.optional(),
+  status: statusSchema.optional(),
+}).strict().refine((body) => Object.values(body).some((value) => value !== undefined), {
   message: 'empty_submenu_update',
 });
 
-export const submenuIdParamsSchema = z.object({
-  id: z.string().uuid(),
+export const listSubmenusQuerySchema = z.object({
+  menuId: z.coerce.number().int().positive().optional(),
+  ...catalogSearchQuerySchema,
 });
 
-export const listSubmenusQuerySchema = z.object({
-  menuId: z.string().uuid().optional(),
-}).strict();
+export const submenuIdParamsSchema = z.object({
+  id: entityIdParamSchema,
+});
 
 export const submenuResponseSchema = z.object({
-  id: z.string().uuid(),
-  menuId: z.string().uuid(),
+  id: z.number().int(),
+  menuId: z.number().int(),
   nome: z.string(),
-  status: submenuStatusSchema,
+  descricaoCurta: z.string().nullable(),
+  descricaoLonga: z.string().nullable(),
+  status: statusSchema,
   criadoEm: z.string().datetime(),
-  atualizadoEm: z.string().datetime(),
 });

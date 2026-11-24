@@ -37,7 +37,7 @@ describe('Scalar API reference', () => {
     expect(document.info.title).toBe('CCA API');
     expect(document.components.securitySchemes.bearerAuth).toMatchObject({ type: 'http', scheme: 'bearer' });
     expect(document.paths['/health'].get.security).toBeUndefined();
-    expect(document.info.description).toContain('forbidden');
+    expect(document.info.description).toContain('ADMINITRADOR');
     expect(document.paths['/v1/me'].get.responses['403']).toBeUndefined();
     expect(document.paths['/v1/usuarios/eu'].get.responses['403']).toBeUndefined();
     expect(document.paths['/v1/empresas'].get.responses['403'].description).toBe('forbidden');
@@ -46,8 +46,9 @@ describe('Scalar API reference', () => {
     expect(document.paths['/v1/empresas'].post.security).toEqual([{ bearerAuth: [] }]);
 
     const systemBody = document.paths['/v1/sistemas'].post.requestBody.content['application/json'].schema;
-    expect(systemBody.required).toEqual(expect.arrayContaining(['nome', 'empresaId']));
-    expect(systemBody.properties.empresaId).toBeTruthy();
+    expect(systemBody.required).toEqual(expect.arrayContaining(['nome', 'empresaIds']));
+    expect(systemBody.properties.empresaId).toBeUndefined();
+    expect(systemBody.properties.empresaIds.type).toBe('array');
     expect(document.paths['/v1/sistemas'].get.parameters).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'empresaId', in: 'query' })]),
     );
@@ -61,21 +62,21 @@ describe('Scalar API reference', () => {
       expect.arrayContaining(['nome', 'menuId']),
     );
     expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.required).toEqual(
-      expect.arrayContaining(['nome', 'email', 'empresaId']),
+      expect.arrayContaining(['nome', 'email']),
     );
     expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.required).not.toContain('keycloakSub');
     expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.properties.keycloakSub).toBeTruthy();
+    expect(document.paths['/v1/usuarios'].post.requestBody.content['application/json'].schema.properties.telas).toBeTruthy();
     expect(document.paths['/v1/usuarios/eu'].get.security).toEqual([{ bearerAuth: [] }]);
-    expect(document.paths['/v1/perfis'].post.requestBody.content['application/json'].schema.required).toEqual(
-      expect.arrayContaining(['nome', 'empresaId']),
-    );
-    expect(document.paths['/v1/permissoes'].post.requestBody.content['application/json'].schema.required).toEqual(
-      expect.arrayContaining(['perfilId', 'recursoTipo', 'recursoId', 'visualizar', 'criar', 'editar', 'excluir']),
-    );
-    expect(document.paths['/v1/permissoes'].post.requestBody.content['application/json'].schema.properties.recursoTipo.enum).toContain('EMPRESA');
-    expect(document.paths['/v1/acessos'].post.requestBody.content['application/json'].schema.required).toEqual(
-      expect.arrayContaining(['usuarioId', 'perfilId', 'sistemaId']),
-    );
+    expect(document.paths['/v1/usuarios/{id}/codigo-acesso'].post.security).toEqual([{ bearerAuth: [] }]);
+    expect(document.paths['/v1/primeiro-acesso']).toBeUndefined();
+    expect(document.paths['/v1/perfis']).toBeUndefined();
+    expect(document.paths['/v1/permissoes']).toBeUndefined();
+    const required = document.paths['/v1/acessos'].post.requestBody.content['application/json'].schema.required;
+    expect(required).toEqual(expect.arrayContaining(['usuarioId', 'empresaId', 'submenuId']));
+    expect(required).not.toContain('sistemaId');
+    expect(required).not.toContain('moduloId');
+    expect(required).not.toContain('menuId');
     expect(document.paths['/v1/auditorias'].post).toBeUndefined();
     expect(document.paths['/v1/auditorias/{id}'].delete).toBeUndefined();
     expect(document.paths['/v1/empresas/{id}'].delete.responses['204']).toBeTruthy();

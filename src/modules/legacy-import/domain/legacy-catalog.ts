@@ -64,9 +64,7 @@ export type LegacyImportReport = {
   modulos: ImportCounts;
   menus: ImportCounts;
   submenus: ImportCounts;
-  perfis: ImportCounts;
   usuarios: ImportCounts;
-  permissoes: ImportCounts;
   acessos: ImportCounts;
   documentosIgnorados: number;
   senhasIgnoradas: number;

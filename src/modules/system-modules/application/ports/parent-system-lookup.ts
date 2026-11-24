@@ -1,3 +1,3 @@
 export interface ParentSystemLookup {
-  findById(id: string): Promise<{ id: string } | null>;
+  findById(id: number): Promise<{ id: number } | null>;
 }

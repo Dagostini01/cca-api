@@ -32,6 +32,14 @@ export class SystemNameConflictError extends DomainError {
   }
 }
 
+export class SystemCompanyInUseError extends DomainError {
+  readonly code = 'system_company_in_use';
+
+  constructor() {
+    super('system_company_in_use');
+  }
+}
+
 export class SystemCompanyNotFoundError extends DomainError {
   readonly code = 'company_not_found';
 

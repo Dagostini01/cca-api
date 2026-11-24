@@ -4,7 +4,7 @@ export type AuditChange = {
   subject: string;
   acao: AuditAction;
   recursoTipo: AuditResource;
-  recursoId: string;
+  recursoId: number;
   descricao: string;
 };
 

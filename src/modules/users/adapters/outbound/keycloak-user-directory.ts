@@ -96,8 +96,10 @@ export function createKeycloakUserDirectory(config: KeycloakUserDirectoryConfig,
       if (!user || Array.isArray(user)) throw new IdentityDirectoryUnavailableError();
       delete user.credentials;
       user.firstName = profile.nome;
-      user.email = profile.email;
-      user.username = profile.email;
+      if (profile.email !== undefined) {
+        user.email = profile.email;
+        user.username = profile.email;
+      }
       user.enabled = profile.enabled;
       const updated = await admin(`/users/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -111,6 +113,16 @@ export function createKeycloakUserDirectory(config: KeycloakUserDirectoryConfig,
       const response = await admin(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (response.status === 204 || response.status === 404) return;
       throw new IdentityDirectoryUnavailableError();
+    },
+    async issueTemporaryPassword(id, value) {
+      const reset = await admin(`/users/${encodeURIComponent(id)}/reset-password`, {
+        method: 'PUT',
+        body: JSON.stringify({ type: 'password', value, temporary: true }),
+      });
+      if (reset.status === 404) throw new IdentitySubjectNotFoundError();
+      if (reset.status !== 204 && reset.status !== 200) throw new IdentityDirectoryUnavailableError();
+      const logout = await admin(`/users/${encodeURIComponent(id)}/logout`, { method: 'POST' });
+      if (logout.status !== 204 && logout.status !== 200) throw new IdentityDirectoryUnavailableError();
     },
   };
 

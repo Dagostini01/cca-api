@@ -1,36 +1,60 @@
 import { z } from 'zod';
+import { CATALOG_STATUSES, USER_TYPES } from '../../../../../shared/catalog/status.js';
+import { entityIdParamSchema, entityIdSchema } from '../../../../../shared/http/entity-id.js';
 
-const accessStatusSchema = z.enum(['ATIVO', 'INATIVO']);
+const statusSchema = z.enum(CATALOG_STATUSES);
 
 export const createAccessBodySchema = z.object({
-  usuarioId: z.string().uuid(),
-  perfilId: z.string().uuid(),
-  sistemaId: z.string().uuid(),
-  status: accessStatusSchema.optional(),
+  usuarioId: entityIdSchema,
+  empresaId: entityIdSchema,
+  submenuId: entityIdSchema,
+  sistemaId: entityIdSchema.optional(),
+  moduloId: entityIdSchema.optional(),
+  menuId: entityIdSchema.optional(),
+  status: statusSchema.optional(),
 }).strict();
 
 export const updateAccessBodySchema = z.object({
-  perfilId: z.string().uuid().optional(),
-  status: accessStatusSchema.optional(),
-}).strict().refine((body) => body.perfilId !== undefined || body.status !== undefined, {
-  message: 'empty_access_update',
+  status: statusSchema,
+}).strict();
+
+export const listAccessesQuerySchema = z.object({
+  usuarioId: z.coerce.number().int().positive(),
+  q: z.string().trim().min(1).max(80).optional(),
+  empresaId: z.coerce.number().int().positive().optional(),
+  sistemaId: z.coerce.number().int().positive().optional(),
+  pagina: z.coerce.number().int().positive().default(1),
+  tamanho: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 export const accessIdParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: entityIdParamSchema,
 });
 
-export const listAccessesQuerySchema = z.object({
-  usuarioId: z.string().uuid().optional(),
-  sistemaId: z.string().uuid().optional(),
-}).strict();
-
 export const accessResponseSchema = z.object({
-  id: z.string().uuid(),
-  usuarioId: z.string().uuid(),
-  perfilId: z.string().uuid(),
-  sistemaId: z.string().uuid(),
-  status: accessStatusSchema,
+  id: z.number().int(),
+  usuarioId: z.number().int(),
+  empresaId: z.number().int(),
+  sistemaId: z.number().int(),
+  moduloId: z.number().int(),
+  menuId: z.number().int(),
+  submenuId: z.number().int(),
+  tipo: z.enum(USER_TYPES),
+  status: statusSchema,
   criadoEm: z.string().datetime(),
-  atualizadoEm: z.string().datetime(),
+});
+
+export const accessViewSchema = accessResponseSchema.extend({
+  empresa: z.string(),
+  sistema: z.string(),
+  modulo: z.string(),
+  menu: z.string(),
+  submenu: z.string(),
+});
+
+export const accessPageSchema = z.object({
+  itens: z.array(accessViewSchema),
+  total: z.number().int().nonnegative(),
+  pagina: z.number().int().positive(),
+  tamanho: z.number().int().positive(),
 });

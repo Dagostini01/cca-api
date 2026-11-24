@@ -6,4 +6,4 @@ O Scalar monta a página. Os corpos, parâmetros e respostas descritos ali são 
 
 Login, senha e redefinição continuam no Keycloak. As rotas `/v1` pedem `Authorization: Bearer`. O navegador em `http://127.0.0.1:4173` ou `http://localhost:4173` pode chamar esta API. Outra origem precisa estar em `CORS_ORIGINS`.
 
-As regras de cada recurso estão em `empresas.md`, `sistemas.md`, `cadeia.md`, `usuarios.md`, `perfis.md`, `permissoes.md`, `acessos.md`, `autorizacao.md`, `auditoria.md` e `importacao.md`.
+As regras de cada recurso estão em `empresas.md`, `sistemas.md`, `cadeia.md`, `usuarios.md`, `acessos.md`, `autorizacao.md`, `auditoria.md` e `importacao.md`. Perfil e permissão com quatro ações não fazem parte do contrato.

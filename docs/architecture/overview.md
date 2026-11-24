@@ -11,12 +11,10 @@
 - Telas de referência: `docs/architecture/ui-prototype.md`.
 - Para sistemas consumidores: OIDC Authorization Code + PKCE; configuração de cliente e audiência no Keycloak.
 - Navegador: a API só reflete as origens listadas em `CORS_ORIGINS`. O padrão local é o cliente `cca-web` nas portas `4173`.
-- Cadastro: Empresa → Sistema → Módulo → Menu → Submenu, com pai obrigatório. Ver ADR-002.
-- Usuário de negócio: nome, e-mail, empresa e `sub` do Keycloak. Sem senha, RG ou CPF. Sem `sub` no corpo, a API cria a conta no realm e guarda o id. `/v1/me` continua só com as claims do token.
-- Perfil de acesso: nome, descrição e status, obrigatoriamente de uma empresa.
-- Permissão: visualizar, criar, editar e excluir sobre a empresa ou sobre um sistema, módulo, menu ou submenu da mesma empresa do perfil.
-- Acesso: usuário, perfil e sistema da mesma empresa. Com ao menos um acesso gravado, as rotas exigem a ação do perfil sobre o recurso. Sem nenhum acesso, qualquer token válido segue. `GET /v1/me` continua só com as claims.
-- Segurança: a autorização efetiva está nas rotas, por recurso e ação. A permissão não herda do pai para o filho.
-- Auditoria: histórico imutável de criação e atualização, com data, usuário local, ação e descrição. Login continua no Keycloak.
-- Importação: o catálogo legado entra sem senha, RG ou CPF. Sistema sem empresa no dump só é gravado quando há uma única empresa ou um acesso que aponta o dono.
+- Cadastro: sistema é catálogo global. Módulo, menu e submenu exigem o pai imediato. A empresa mora na linha de acesso. Ver ADR-003. O ADR-002 foi substituído.
+- Usuário de negócio: nome, e-mail, tipo, status e `sub` do Keycloak. RG, CPF e celular existem no corpo e não vão para log. Sem `sub` no corpo, a API cria a conta no realm sem senha e guarda o id. A criação também grava as telas. `/v1/me` continua só com as claims do token.
+- Acesso: uma linha por tela, com empresa, sistema, módulo, menu e submenu coerentes. Não há perfil nem as ações visualizar, criar, editar e excluir.
+- Autorização: o cadastro exige administrador ativo. Enquanto não existir administrador, um token válido cria o primeiro. A tela abre quando a linha daquele submenu está `ATIVADO`.
+- Auditoria: histórico de criar, atualizar e excluir, com data, usuário local, ação e descrição. Login continua no Keycloak.
+- Importação: o catálogo legado entra sem senha. Sistema é global. Usuário sem e-mail fica de fora.
 - Desenvolvimento: Keycloak `start-dev` somente local; o realm `cca` é provisionado por `infra/keycloak/configure-realm.sh`. Endurecer configurações para produção.

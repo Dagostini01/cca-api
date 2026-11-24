@@ -38,7 +38,7 @@ describe('HTTP empresas', () => {
       method: 'POST',
       url: '/v1/empresas',
       headers: { authorization: 'Bearer bad' },
-      payload: { nome: 'Alfa', cnpj: validCnpj },
+      payload: { razaoSocial: 'Alfa', cnpj: validCnpj },
     });
     expect(response.statusCode).toBe(401);
     expect(response.json()).toEqual({ error: 'invalid_token' });
@@ -53,17 +53,17 @@ describe('HTTP empresas', () => {
       method: 'POST',
       url: '/v1/empresas',
       headers,
-      payload: { nome: ' Beta ', cnpj: validCnpj },
+      payload: { razaoSocial: ' Beta ', cnpj: validCnpj },
     });
     expect(created.statusCode).toBe(201);
     const company = created.json();
-    expect(company).toMatchObject({ nome: 'Beta', cnpj: storedCnpj, status: 'ATIVO' });
+    expect(company).toMatchObject({ razaoSocial: 'Beta', cnpj: storedCnpj, status: 'ATIVADO' });
     expect(company.criadoEm).toEqual(expect.any(String));
     expect(created.body).not.toContain(validCnpj);
 
     const listed = await app.inject({ method: 'GET', url: '/v1/empresas', headers });
     expect(listed.statusCode).toBe(200);
-    expect(listed.json()).toEqual([expect.objectContaining({ id: company.id, nome: 'Beta' })]);
+    expect(listed.json()).toEqual([expect.objectContaining({ id: company.id, razaoSocial: 'Beta' })]);
 
     const fetched = await app.inject({ method: 'GET', url: `/v1/empresas/${company.id}`, headers });
     expect(fetched.statusCode).toBe(200);
@@ -73,22 +73,22 @@ describe('HTTP empresas', () => {
       method: 'PATCH',
       url: `/v1/empresas/${company.id}`,
       headers,
-      payload: { status: 'INATIVO', cnpj: null },
+      payload: { status: 'DESATIVADO', cnpj: null },
     });
     expect(updated.statusCode).toBe(200);
-    expect(updated.json()).toMatchObject({ id: company.id, nome: 'Beta', cnpj: null, status: 'INATIVO' });
+    expect(updated.json()).toMatchObject({ id: company.id, razaoSocial: 'Beta', cnpj: null, status: 'DESATIVADO' });
   });
 
   it('returns validation, conflict and not-found errors without the document', async () => {
     const app = createApp();
     const headers = { authorization: 'Bearer access-token' };
-    await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { nome: 'Alfa', cnpj: validCnpj } });
+    await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { razaoSocial: 'Alfa', cnpj: validCnpj } });
 
     const invalid = await app.inject({
       method: 'POST',
       url: '/v1/empresas',
       headers,
-      payload: { nome: 'Gama', cnpj: '11.222.333/0001-80', extra: true },
+      payload: { razaoSocial: 'Gama', cnpj: '11.222.333/0001-80', extra: true },
     });
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json().error).toBe('validation_error');
@@ -99,30 +99,31 @@ describe('HTTP empresas', () => {
       method: 'POST',
       url: '/v1/empresas',
       headers,
-      payload: { nome: 'Delta', cnpj: storedCnpj },
+      payload: { razaoSocial: 'Delta', cnpj: storedCnpj },
     });
     expect(conflict.statusCode).toBe(409);
     expect(conflict.json()).toEqual({ error: 'company_document_conflict' });
     expect(conflict.body).not.toContain(storedCnpj);
 
-    const missing = await app.inject({
-      method: 'GET',
-      url: '/v1/empresas/5b6c2f0a-1d4e-4a7b-9c3d-8e2f1a0b6c5d',
-      headers,
-    });
+    const missing = await app.inject({ method: 'GET', url: '/v1/empresas/999', headers });
     expect(missing.statusCode).toBe(404);
     expect(missing.json()).toEqual({ error: 'company_not_found' });
 
     const empty = await app.inject({
       method: 'PATCH',
-      url: '/v1/empresas/5b6c2f0a-1d4e-4a7b-9c3d-8e2f1a0b6c5d',
+      url: '/v1/empresas/999',
       headers,
       payload: {},
     });
     expect(empty.statusCode).toBe(400);
     expect(empty.json().error).toBe('validation_error');
 
-    const malformed = await app.inject({ method: 'GET', url: '/v1/empresas/nao-e-uuid', headers });
+    const filtered = await app.inject({ method: 'GET', url: '/v1/empresas?q=Alfa&pagina=1&tamanho=5', headers });
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json()).toMatchObject({ total: 1, pagina: 1, tamanho: 5 });
+    expect(filtered.json().itens).toEqual([expect.objectContaining({ razaoSocial: 'Alfa' })]);
+
+    const malformed = await app.inject({ method: 'GET', url: '/v1/empresas/nao-e-id', headers });
     expect(malformed.statusCode).toBe(400);
     expect(malformed.json().error).toBe('validation_error');
   });

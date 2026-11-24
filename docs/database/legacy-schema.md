@@ -40,14 +40,18 @@ A hierarquia de navegação é sistema → módulo → menu → submenu. A empre
 7. Nomes de constraint de CEP e cidade citam tabelas `t073` e `t075`, que não existem neste dump. As referências reais são `t072_ceps`, `t074_estados` e `t076_cidades`.
 8. O servidor de origem é MySQL 5.7. O Compose local usa MySQL 8.0. `int(11)` e `int(3)` são largura de exibição do 5.7 e não devem ser reproduzidos como regra de negócio.
 
-## Decisão de hierarquia
+## Decisão vigente
 
-Aceita em `docs/decisions/ADR-002-ownership-hierarchy.md`.
+O ADR-002 foi substituído pelo ADR-003. O banco atual segue estas tabelas.
 
-Empresa → Sistema → Módulo → Menu → Submenu. Cada nível exige o pai e permanece amarrado a ele. O catálogo global de `t025_sistemas` não será reproduzido.
+`t025_sistemas` é catálogo global. Módulo aponta para sistema, menu para módulo e submenu para menu. A empresa mora em `t052_usuarios_acessos`, na mesma linha que sistema, módulo, menu e submenu. A cadeia dessa linha tem de ser coerente.
 
-Ainda fora do cadastro atual:
+Status deixa de ser enum e vira `t046_tp_status`: `ATIVADO` e `DESATIVADO`. O tipo de usuário fica em `t048_tp_usuarios`, com o rótulo `ADMINITRADOR` como está no script, e `SUPERVISOR`.
 
-- Não importar `t047_usuarios_senhas`. O importador conta essas linhas e não lê senha nem hash para o catálogo.
-- RG, CPF e celular de `t045_usuarios` também ficam de fora. Usuário sem e-mail não é criado.
-- Endereço, CEP, contato e `t070_auditorias` não têm tabela correspondente.
+Duas colunas não estão no script e entram porque a API precisa delas: `KEYCLOAK_SUB` em `t045_usuarios` e `ID_USUARIO_INCLUSAO`, que aponta para quem criou o usuário.
+
+`t047_usuarios_senhas` existe para o schema bater com o backup. Nenhuma rota lê, grava ou devolve senha ou hash, e a importação não carrega essa linha. O login continua no Keycloak.
+
+RG, CPF e celular existem em `t045` e no corpo de usuário. A API não escreve esses valores em log. Usuário do dump sem e-mail continua ignorado.
+
+Endereço, contato, CEP, estado e cidade existem como tabelas, sem rota neste passo. A auditoria de criar, atualizar e excluir vira linha em `t070_auditorias`. Login e logout continuam no Keycloak, então `DT_LOGIN` e `DT_LOGOUT` ficam vazios.

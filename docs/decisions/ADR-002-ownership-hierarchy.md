@@ -1,6 +1,6 @@
 # ADR-002 — Hierarquia obrigatória a partir da empresa
 
-**Status:** Aceita.
+**Status:** Substituída pelo ADR-003. O sistema voltou a ser catálogo global e a empresa passou a morar na linha de acesso.
 
 **Decisão:** nenhum sistema existe sem empresa. A partir daí a posse é obrigatória em cada nível:
 

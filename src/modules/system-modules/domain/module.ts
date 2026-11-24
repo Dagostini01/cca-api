@@ -1,16 +1,18 @@
+import type { CatalogStatus } from '../../../shared/catalog/status.js';
 import { InvalidModuleNameError } from './module-errors.js';
 
 export const MODULE_NAME_MAX_LENGTH = 128;
 
-export type ModuleStatus = 'ATIVO' | 'INATIVO';
+export type ModuleStatus = CatalogStatus;
 
 export type Module = {
-  id: string;
-  sistemaId: string;
+  id: number;
+  sistemaId: number;
   nome: string;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
   status: ModuleStatus;
   criadoEm: Date;
-  atualizadoEm: Date;
 };
 
 export function normalizeModuleName(nome: string): string {

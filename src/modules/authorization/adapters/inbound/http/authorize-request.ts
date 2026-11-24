@@ -1,24 +1,21 @@
-import type { AuthorizationTarget, Authorizer } from '../../../application/ports/authorizer.js';
+import type { Authorizer } from '../../../application/ports/authorizer.js';
 
-export async function authorize(
+export async function authorizeCatalog(authorizer: Authorizer | undefined, subject: string): Promise<void> {
+  if (authorizer) await authorizer.assertCatalog(subject);
+}
+
+export async function authorizeUserManagement(
   authorizer: Authorizer | undefined,
   subject: string,
-  action: 'visualizar' | 'criar' | 'editar' | 'excluir',
-  target: AuthorizationTarget,
+  userId: number,
 ): Promise<void> {
-  if (authorizer) await authorizer.assert(subject, action, target);
+  if (authorizer) await authorizer.assertCanManageUser(subject, userId);
 }
 
-export async function authorizeCompanyCreation(authorizer: Authorizer | undefined, subject: string): Promise<void> {
-  if (authorizer) await authorizer.assertCanCreateCompany(subject);
-}
-
-export async function onlyVisible<T>(
+export async function authorizeScreen(
   authorizer: Authorizer | undefined,
   subject: string,
-  items: T[],
-  targetOf: (item: T) => AuthorizationTarget,
-): Promise<T[]> {
-  if (!authorizer) return items;
-  return authorizer.filter(subject, 'visualizar', items, targetOf);
+  submenuId: number,
+): Promise<void> {
+  if (authorizer) await authorizer.assertScreen(subject, submenuId);
 }

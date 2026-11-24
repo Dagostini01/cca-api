@@ -1,37 +1,51 @@
 # Usuários
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
+Usuário de negócio é `t045_usuarios`. O identificador é inteiro. O login continua no Keycloak. A CCA guarda nome, sobrenome, apelido, e-mail, RG, CPF, celular, tipo (`ADMINITRADOR` ou `SUPERVISOR`), status e o `sub`.
 
-O usuário de negócio pertence a uma empresa. O login continua no Keycloak. Esta tabela guarda o `sub`, o nome, o e-mail e o status. Não há senha, RG nem CPF.
+`ID_USUARIO_INCLUSAO` recebe o administrador do token. No primeiro usuário, quando ainda não há cadastro local, fica nulo.
 
-`POST /v1/usuarios` tem dois caminhos. Sem `keycloakSub`, a API cria o usuário no realm e grava o id devolvido. O username e o e-mail são o e-mail em minúsculas, o nome vira `firstName`, e a conta nasce com a ação `UPDATE_PASSWORD`. A API não define senha e não envia e-mail: este ambiente local não tem SMTP. Com `keycloakSub`, a API só liga um usuário que já existe no realm e não cria outro. Sem o adaptador de diretório, o `keycloakSub` continua obrigatório na regra de negócio.
+`POST /v1/usuarios` cria a pessoa e as telas na mesma transação. Cada item de `telas` é `{ empresaId, sistemaId, moduloId, menuId, submenuId }` e vira uma linha em `t052_usuarios_acessos`. A cadeia tem de ser coerente.
 
-`keycloakSub` é um UUID, único e imutável. Um `sub` errado se corrige inativando o cadastro e criando outro. O e-mail é obrigatório, único e persistido em minúsculas. A empresa precisa existir. `DELETE /v1/usuarios/:id` exclui o cadastro local quando ele não tem acesso nem evento de auditoria em que seja o autor. A conta no Keycloak permanece. Quem exclui a si mesmo não gera evento `EXCLUIR`. Com vínculo, a resposta é 409 `delete_restricted`.
+E-mail presente cria o usuário no Keycloak sem senha: username é o e-mail em minúsculas, `firstName` é o nome, a conta nasce habilitada quando o status não é `DESATIVADO`, `emailVerified` fica falso e a ação exigida é `UPDATE_PASSWORD`. Com `keycloakSub`, a API liga a conta se ela existir. Sem `sub` e sem o provisionador, a resposta é `invalid_user_subject`.
 
-`PATCH` pode mudar nome, e-mail e status. Esses três campos também atualizam o usuário no Keycloak: `INATIVO` desliga a conta e `ATIVO` liga. Trocar só a empresa não chama o diretório. Se o cadastro local falhar depois da atualização no Keycloak, a API tenta devolver o nome, o e-mail e o status anteriores.
+`POST /v1/usuarios/:id/codigo-acesso` gera um código de uso único no formato `XXXX-XXXX-XXXX` e grava esse valor no Keycloak como senha temporária, que exige `UPDATE_PASSWORD`. Também encerra as sessões abertas da conta. No login, a pessoa informa e-mail e código, e o Keycloak pede a nova senha. O código vale um login. Gerar outro invalida o anterior e também a senha atual. O valor só aparece nessa resposta, com `Cache-Control: no-store`, e o CCA não o guarda. A auditoria registra só que houve emissão. Só o administrador que pode gerir o usuário chama a rota. Usuário `DESATIVADO` recebe `access_code_unavailable`. Não existe rota sem token para definir senha.
 
-`GET /v1/me` continua devolvendo só as claims do token. O cadastro local do mesmo `sub` é `GET /v1/usuarios/eu`. Se ainda não houver linha, a resposta é 404. Essa consulta do próprio usuário não exige permissão de empresa. O catálogo de usuários segue `autorizacao.md`.
+`GET /v1/usuarios` devolve só os usuários criados pelo administrador logado. `GET /v1/usuarios/eu` é o próprio usuário do token e não exige o cadastro geral.
 
-## Rotas
+`GET /v1/usuarios/:id/telas` responde no formato da consulta de exemplo: sistema, módulo, menu e submenu, só das linhas `ATIVADO`. O próprio usuário ativo lê as suas. O administrador que o criou também. Usuário sem autor pode ser lido por qualquer administrador ativo.
 
-Todas exigem Bearer token.
+`PATCH` pode trocar o conjunto de telas. A lista enviada substitui as linhas daquele usuário. Lista vazia limpa. Só o administrador que criou o usuário faz isso, ou qualquer administrador ativo quando `criadoPorId` é nulo. `keycloakSub` não muda. Nome, e-mail e status também atualizam o Keycloak quando há `sub` e e-mail.
 
-- `POST /v1/usuarios` com `{ "nome", "email", "empresaId", "keycloakSub?", "status?" }`. Sem status, o padrão é `ATIVO`. Resposta `201`.
-- `GET /v1/usuarios` lista por nome. `?empresaId=` restringe à empresa.
-- `GET /v1/usuarios/eu` devolve o usuário cujo `keycloakSub` é o `sub` do token.
-- `GET /v1/usuarios/:id`
-- `PATCH /v1/usuarios/:id` altera ao menos um campo entre `nome`, `email`, `empresaId` e `status`. Trocar `empresaId` exige que a empresa de destino exista.
+`DELETE` remove o cadastro quando ele não criou outros usuários e não tem tela nem auditoria. A conta no Keycloak permanece. Se quem apaga é o próprio `sub`, a API não grava o evento `EXCLUIR` dessa exclusão, para a linha nova não impedir o delete.
+
+RG, CPF e celular podem ir no corpo. A API não escreve esses valores em log. A resposta de validação também não devolve o valor recebido.
+
+## Contrato
+
+```json
+{
+  "nome": "Ana",
+  "email": "ana@exemplo.com",
+  "tipo": "SUPERVISOR",
+  "telas": [
+    { "empresaId": 1, "sistemaId": 1, "moduloId": 1, "menuId": 1, "submenuId": 1 }
+  ]
+}
+```
+
+Nome e e-mail são obrigatórios. Sem tipo, o padrão é `ADMINITRADOR`. Sem status, o padrão é `ATIVADO`.
 
 ## Erros
 
-| Situação | HTTP | `error` |
-| --- | --- | --- |
-| Empresa inexistente | 404 | `company_not_found` |
-| Usuário inexistente, inclusive em `/eu` | 404 | `user_not_found` |
-| `sub` informado e ausente no Keycloak | 404 | `identity_subject_not_found` |
-| E-mail já usado no cadastro local | 409 | `user_email_conflict` |
-| E-mail já usado no Keycloak | 409 | `identity_email_conflict` |
-| `sub` já usado no cadastro local | 409 | `user_subject_conflict` |
-| Keycloak indisponível | 503 | `identity_directory_unavailable` |
-| JSON inválido, id inválido, corpo vazio ou campo desconhecido | 400 | `validation_error` |
-| Nome, e-mail ou `sub` rejeitados pela regra de domínio | 400 | `invalid_user_name`, `invalid_user_email` ou `invalid_user_subject` |
+| Situação | HTTP | Corpo |
+|---|---|---|
+| E-mail ou `sub` repetido | 409 | `user_email_conflict` ou `user_subject_conflict` |
+| `sub` que não é UUID, ou criação sem diretório e sem `sub` | 400 | `invalid_user_subject` |
+| `sub` ausente no diretório | 404 | `identity_subject_not_found` |
+| E-mail já usado no diretório | 409 | `identity_email_conflict` |
+| Tela com cadeia quebrada | 400 | `incoherent_screen` |
+| A mesma tela duas vezes | 409 | `access_conflict` |
+| Id inexistente | 404 | `user_not_found` |
+| Outro administrador tenta alterar quem não criou | 403 | `forbidden` |
+| Usuário com filhos, tela ou auditoria | 409 | `delete_restricted` |
+| Código de acesso para usuário desativado, sem `sub` ou sem provisionador | 409 | `access_code_unavailable` |

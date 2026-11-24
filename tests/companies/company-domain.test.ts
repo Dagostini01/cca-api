@@ -22,6 +22,6 @@ describe('company document', () => {
   it('trims the name and rejects an empty name', () => {
     expect(normalizeCompanyName('  Datasite  ')).toBe('Datasite');
     expect(() => normalizeCompanyName('   ')).toThrow(InvalidCompanyNameError);
-    expect(() => normalizeCompanyName('a'.repeat(129))).toThrow(InvalidCompanyNameError);
+    expect(() => normalizeCompanyName('a'.repeat(121))).toThrow(InvalidCompanyNameError);
   });
 });

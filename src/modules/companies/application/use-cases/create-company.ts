@@ -1,9 +1,12 @@
-import { normalizeCnpj, normalizeCompanyName, type Company, type CompanyStatus } from '../../domain/company.js';
+import { normalizeCnpj, normalizeCompanyAlias, normalizeCompanyName, type Company, type CompanyStatus } from '../../domain/company.js';
 import type { CompanyRepository } from '../ports/company-repository.js';
 
 export type CreateCompanyInput = {
-  nome: string;
+  razaoSocial: string;
+  nomeFantasia?: string | null;
+  nomeReduzido?: string | null;
   cnpj?: string | null;
+  dataConstituicao?: Date | null;
   status?: CompanyStatus;
 };
 
@@ -12,9 +15,12 @@ export class CreateCompany {
 
   async execute(input: CreateCompanyInput): Promise<Company> {
     return this.companies.add({
-      nome: normalizeCompanyName(input.nome),
+      razaoSocial: normalizeCompanyName(input.razaoSocial),
+      nomeFantasia: normalizeCompanyAlias(input.nomeFantasia),
+      nomeReduzido: normalizeCompanyAlias(input.nomeReduzido),
       cnpj: normalizeCnpj(input.cnpj),
-      status: input.status ?? 'ATIVO',
+      dataConstituicao: input.dataConstituicao ?? null,
+      status: input.status ?? 'ATIVADO',
     });
   }
 }

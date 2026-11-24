@@ -1,26 +1,26 @@
 import { z } from 'zod';
+import { entityIdParamSchema } from '../../../../../shared/http/entity-id.js';
+import { catalogSearchQuerySchema } from '../../../../../shared/http/page.js';
 import { AUDIT_ACTIONS, AUDIT_RESOURCES } from '../../../domain/audit.js';
 
-export const auditIdParamsSchema = z.object({
-  id: z.string().uuid(),
-});
-
 export const listAuditsQuerySchema = z.object({
-  empresaId: z.string().uuid().optional(),
-  usuarioId: z.string().uuid().optional(),
+  usuarioId: z.coerce.number().int().positive().optional(),
   recursoTipo: z.enum(AUDIT_RESOURCES).optional(),
+  acao: z.enum(AUDIT_ACTIONS).optional(),
   desde: z.string().datetime().optional(),
   ate: z.string().datetime().optional(),
-}).strict();
+  ...catalogSearchQuerySchema,
+});
+
+export const auditIdParamsSchema = z.object({
+  id: entityIdParamSchema,
+});
 
 export const auditResponseSchema = z.object({
-  id: z.string().uuid(),
-  ocorridoEm: z.string().datetime(),
-  usuarioId: z.string().uuid().nullable(),
-  usuarioNome: z.string().nullable(),
+  id: z.number().int(),
+  criadoEm: z.string().datetime(),
+  usuarioId: z.number().int().nullable(),
   acao: z.enum(AUDIT_ACTIONS),
   recursoTipo: z.enum(AUDIT_RESOURCES),
-  recursoId: z.string().uuid(),
   descricao: z.string(),
-  empresaId: z.string().uuid(),
 });

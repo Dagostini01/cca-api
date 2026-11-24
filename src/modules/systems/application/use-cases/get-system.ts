@@ -5,7 +5,7 @@ import type { SystemRepository } from '../ports/system-repository.js';
 export class GetSystem {
   constructor(private readonly systems: SystemRepository) {}
 
-  async execute(id: string): Promise<System> {
+  async execute(id: number): Promise<System> {
     const system = await this.systems.findById(id);
     if (!system) throw new SystemNotFoundError();
     return system;

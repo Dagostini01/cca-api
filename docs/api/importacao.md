@@ -1,23 +1,15 @@
-# Importação do legado
+# Importação do catálogo legado
 
-O contrato executável está na referência Scalar, em `/docs/`. Esta página guarda a regra de negócio.
+`POST /v1/importacoes/legado` e `npm run import:legacy -- caminho.sql` leem o catálogo já extraído do dump. O arquivo SQL original não é editado nem commitado.
 
-`POST /v1/importacoes/legado` recebe o catálogo já separado do dump. O corpo não tem senha, RG, CPF nem celular. Um campo desconhecido, inclusive esses, responde `validation_error`.
+Entra:
 
-O script `npm run import:legacy -- caminho.sql` lê um dump HeidiSQL na máquina, descarta essas colunas e grava pelo mesmo caso de uso. Ele não altera o arquivo e não imprime o conteúdo das linhas. A resposta é só a contagem.
+- Empresa, com razão social e CNPJ. CNPJ inválido é contado em `documentosIgnorados` e gravado nulo.
+- Sistema, como catálogo global, uma vez. Várias empresas não impedem a carga.
+- Módulo, menu e submenu, cada um no pai imediato.
+- Usuário com e-mail. Sem e-mail, a linha é ignorada. O tipo segue o rótulo do perfil antigo: se começa com `ADMIN`, vira `ADMINITRADOR`; os demais viram `SUPERVISOR`. Status que começa com “ativ” vira `ATIVADO`; o resto, `DESATIVADO`.
+- Acesso antigo vira uma linha de tela. A cadeia é lida do submenu para o menu e para o módulo, e o módulo precisa ser do sistema informado.
 
-## O que entra
+Não entra senha nem hash. A tabela `t047_usuarios_senhas` existe no banco e a importação não carrega a linha do backup. RG, CPF e celular do dump também não são copiados. Repetir a carga reencontra empresa, nome dentro do pai, e-mail e a mesma tela.
 
-- Empresa, com o nome fantasia quando existe. CNPJ inválido vira nulo e conta em `documentosIgnorados`.
-- Sistema, módulo, menu e submenu, com o nome principal e o status. `ATIVADO` vira `ATIVO`. Os demais rótulos viram `INATIVO`.
-- Perfil a partir do tipo de usuário, em cada empresa importada, sem descrição.
-- Usuário só quando há e-mail e um `sub`. O `sub` vem em `vinculos` ou, na API, da criação no Keycloak. Sem e-mail, a linha é ignorada.
-- Acesso antigo vira permissão de visualizar no submenu e um acesso do usuário ao perfil naquele sistema. Criar, editar e excluir ficam desligados.
-
-Um sistema do dump não tem empresa. Se o arquivo tem uma única empresa, a cadeia inteira fica nela. Se há várias, o sistema só entra nas empresas citadas por um acesso. Sem esse vínculo, a importação não grava nada e responde `legacy_system_owner_unknown`.
-
-Repetir a importação reencontra o mesmo nome dentro do pai e conta como existente. A importação não apaga cadastros.
-
-## O que fica de fora
-
-Senha, RG, CPF, celular, endereço, CEP, contato e a auditoria antiga de login. `senhasIgnoradas` é só a quantidade de linhas de senha que não foram lidas para o catálogo.
+A rota exige administrador ativo, com a mesma abertura inicial do cadastro. O corpo não aceita campo de senha.

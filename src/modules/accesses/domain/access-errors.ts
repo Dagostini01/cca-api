@@ -24,11 +24,19 @@ export class AccessConflictError extends DomainError {
   }
 }
 
-export class AccessCompanyMismatchError extends DomainError {
-  readonly code = 'access_company_mismatch';
+export class IncoherentScreenError extends DomainError {
+  readonly code = 'incoherent_screen';
 
   constructor() {
-    super('access_company_mismatch');
+    super('incoherent_screen');
+  }
+}
+
+export class SystemNotInCompanyError extends DomainError {
+  readonly code = 'system_not_in_company';
+
+  constructor() {
+    super('system_not_in_company');
   }
 }
 
@@ -37,21 +45,5 @@ export class AccessUserNotFoundError extends DomainError {
 
   constructor() {
     super('user_not_found');
-  }
-}
-
-export class AccessProfileNotFoundError extends DomainError {
-  readonly code = 'profile_not_found';
-
-  constructor() {
-    super('profile_not_found');
-  }
-}
-
-export class AccessSystemNotFoundError extends DomainError {
-  readonly code = 'system_not_found';
-
-  constructor() {
-    super('system_not_found');
   }
 }

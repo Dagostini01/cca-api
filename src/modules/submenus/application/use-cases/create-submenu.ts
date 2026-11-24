@@ -1,3 +1,4 @@
+import { LONG_TEXT_MAX_LENGTH, SHORT_TEXT_MAX_LENGTH, normalizeOptionalText } from '../../../../shared/catalog/text.js';
 import { normalizeSubmenuName, type Submenu, type SubmenuStatus } from '../../domain/submenu.js';
 import { SubmenuMenuNotFoundError } from '../../domain/submenu-errors.js';
 import type { ParentMenuLookup } from '../ports/parent-menu-lookup.js';
@@ -5,7 +6,9 @@ import type { SubmenuRepository } from '../ports/submenu-repository.js';
 
 export type CreateSubmenuInput = {
   nome: string;
-  menuId: string;
+  menuId: number;
+  descricaoCurta?: string | null;
+  descricaoLonga?: string | null;
   status?: SubmenuStatus;
 };
 
@@ -21,7 +24,9 @@ export class CreateSubmenu {
     return this.submenus.add({
       menuId: input.menuId,
       nome: normalizeSubmenuName(input.nome),
-      status: input.status ?? 'ATIVO',
+      descricaoCurta: normalizeOptionalText(input.descricaoCurta, SHORT_TEXT_MAX_LENGTH),
+      descricaoLonga: normalizeOptionalText(input.descricaoLonga, LONG_TEXT_MAX_LENGTH),
+      status: input.status ?? 'ATIVADO',
     });
   }
 }

@@ -13,15 +13,16 @@ export type UserDeleteBlockers = {
 export class DeleteUser {
   constructor(private readonly users: UserRepository, private readonly blockers: UserDeleteBlockers = {}) {}
 
-  async execute(id: string): Promise<BusinessUser> {
+  async execute(id: number): Promise<BusinessUser> {
     const user = await this.ensureDeletable(id);
     await this.users.remove(id);
     return user;
   }
 
-  async ensureDeletable(id: string): Promise<BusinessUser> {
+  async ensureDeletable(id: number): Promise<BusinessUser> {
     const user = await this.users.findById(id);
     if (!user) throw new UserNotFoundError();
+    if ((await this.users.listByCreator(id)).length) throw new DeleteRestrictedError();
     if ((await this.blockers.accesses?.list({ usuarioId: id }))?.length) throw new DeleteRestrictedError();
     if ((await this.blockers.audits?.list({ usuarioId: id }))?.length) throw new DeleteRestrictedError();
     return user;

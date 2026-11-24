@@ -1,16 +1,18 @@
+import type { CatalogStatus } from '../../../shared/catalog/status.js';
 import { InvalidSystemNameError } from './system-errors.js';
 
 export const SYSTEM_NAME_MAX_LENGTH = 128;
 
-export type SystemStatus = 'ATIVO' | 'INATIVO';
+export type SystemStatus = CatalogStatus;
 
 export type System = {
-  id: string;
-  empresaId: string;
+  id: number;
   nome: string;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
   status: SystemStatus;
+  empresaIds: number[];
   criadoEm: Date;
-  atualizadoEm: Date;
 };
 
 export function normalizeSystemName(nome: string): string {

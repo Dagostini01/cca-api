@@ -1,31 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildApp } from '../../src/app.js';
-import { testEnv } from '../helpers/env.js';
-import { InMemoryAccessRepository } from '../accesses/in-memory-access-repository.js';
-import { InMemoryCompanyRepository } from '../companies/in-memory-company-repository.js';
-import { InMemoryProfileRepository } from '../profiles/in-memory-profile-repository.js';
-import { InMemorySystemRepository } from '../systems/in-memory-system-repository.js';
-import { InMemoryUserRepository } from '../users/in-memory-user-repository.js';
+import { createMemoryApp } from '../helpers/memory-app.js';
 
 const subject = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
 describe('HTTP acessos', () => {
-  const apps: Array<ReturnType<typeof buildApp>> = [];
+  const apps: Array<ReturnType<typeof createMemoryApp>['app']> = [];
 
   afterEach(async () => {
     await Promise.all(apps.splice(0).map((app) => app.close()));
   });
 
   function createApp() {
-    const app = buildApp(testEnv, {
-      tokenVerifier: { verify: async () => ({ id: subject }) },
-      companyRepository: new InMemoryCompanyRepository(),
-      systemRepository: new InMemorySystemRepository(),
-      userRepository: new InMemoryUserRepository(),
-      profileRepository: new InMemoryProfileRepository(),
-      accessRepository: new InMemoryAccessRepository(),
-      logger: false,
-    });
+    const { app } = createMemoryApp({ verify: async () => ({ id: subject }) });
     apps.push(app);
     return app;
   }
@@ -36,85 +22,91 @@ describe('HTTP acessos', () => {
     expect(response.json()).toEqual({ error: 'unauthorized' });
   });
 
-  it('links a user, a profile and a system of the same company', async () => {
+  it('grants one screen, rejects a broken chain and a repeated submenu', async () => {
     const app = createApp();
     const headers = { authorization: 'Bearer access-token' };
-    const alfa = await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { nome: 'Alfa' } });
-    const beta = await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { nome: 'Beta' } });
-    const empresaId = alfa.json().id as string;
+    const company = await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { razaoSocial: 'Alfa' } });
+    const system = await app.inject({ method: 'POST', url: '/v1/sistemas', headers, payload: { nome: 'Escala', empresaIds: [company.json().id] } });
+    const module = await app.inject({
+      method: 'POST',
+      url: '/v1/modulos',
+      headers,
+      payload: { nome: 'Cadastro', sistemaId: system.json().id },
+    });
+    const menu = await app.inject({
+      method: 'POST',
+      url: '/v1/menus',
+      headers,
+      payload: { nome: 'Pessoas', moduloId: module.json().id },
+    });
+    const submenu = await app.inject({
+      method: 'POST',
+      url: '/v1/submenus',
+      headers,
+      payload: { nome: 'Novo', menuId: menu.json().id },
+    });
+    const other = await app.inject({
+      method: 'POST',
+      url: '/v1/submenus',
+      headers,
+      payload: { nome: 'Lista', menuId: menu.json().id },
+    });
     const user = await app.inject({
       method: 'POST',
       url: '/v1/usuarios',
       headers,
-      payload: { nome: 'Ana', email: 'ana@exemplo.com', keycloakSub: subject, empresaId },
+      payload: { nome: 'Ana', email: 'ana@exemplo.com', keycloakSub: subject },
     });
-    const supervisor = await app.inject({
-      method: 'POST',
-      url: '/v1/perfis',
-      headers,
-      payload: { nome: 'Supervisor', empresaId },
-    });
-    const viewer = await app.inject({
-      method: 'POST',
-      url: '/v1/perfis',
-      headers,
-      payload: { nome: 'Visualizador', empresaId },
-    });
-    const foreign = await app.inject({
-      method: 'POST',
-      url: '/v1/perfis',
-      headers,
-      payload: { nome: 'Supervisor', empresaId: beta.json().id },
-    });
-    const escala = await app.inject({
-      method: 'POST',
-      url: '/v1/sistemas',
-      headers,
-      payload: { nome: 'Escala', empresaId },
-    });
-    const portal = await app.inject({
-      method: 'POST',
-      url: '/v1/sistemas',
-      headers,
-      payload: { nome: 'Portal', empresaId },
-    });
-    const usuarioId = user.json().id as string;
-    const sistemaId = escala.json().id as string;
+    const usuarioId = user.json().id as number;
+    const screen = {
+      usuarioId,
+      empresaId: company.json().id,
+      sistemaId: system.json().id,
+      moduloId: module.json().id,
+      menuId: menu.json().id,
+      submenuId: submenu.json().id,
+    };
 
     const missing = await app.inject({
       method: 'POST',
       url: '/v1/acessos',
       headers,
-      payload: { usuarioId: '5b6c2f0a-1d4e-4a7b-9c3d-8e2f1a0b6c5d', perfilId: supervisor.json().id, sistemaId },
+      payload: { ...screen, usuarioId: 999 },
     });
     expect(missing.statusCode).toBe(404);
     expect(missing.json()).toEqual({ error: 'user_not_found' });
 
-    const mismatch = await app.inject({
+    const otherMenu = await app.inject({
+      method: 'POST',
+      url: '/v1/menus',
+      headers,
+      payload: { nome: 'Outro', moduloId: module.json().id },
+    });
+    const broken = await app.inject({
       method: 'POST',
       url: '/v1/acessos',
       headers,
-      payload: { usuarioId, perfilId: foreign.json().id, sistemaId },
+      payload: { ...screen, menuId: otherMenu.json().id },
     });
-    expect(mismatch.statusCode).toBe(409);
-    expect(mismatch.json()).toEqual({ error: 'access_company_mismatch' });
+    expect(broken.statusCode).toBe(400);
+    expect(broken.json()).toEqual({ error: 'incoherent_screen' });
 
-    const created = await app.inject({
+    const outsider = await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { razaoSocial: 'Beta' } });
+    const foreign = await app.inject({
       method: 'POST',
       url: '/v1/acessos',
       headers,
-      payload: { usuarioId, perfilId: supervisor.json().id, sistemaId },
+      payload: { ...screen, empresaId: outsider.json().id },
     });
+    expect(foreign.statusCode).toBe(400);
+    expect(foreign.json()).toEqual({ error: 'system_not_in_company' });
+
+    const created = await app.inject({ method: 'POST', url: '/v1/acessos', headers, payload: screen });
     expect(created.statusCode).toBe(201);
-    expect(created.json()).toMatchObject({ usuarioId, perfilId: supervisor.json().id, sistemaId, status: 'ATIVO' });
+    expect(created.json()).toMatchObject({ usuarioId, submenuId: submenu.json().id, status: 'ATIVADO' });
     expect(created.json()).not.toHaveProperty('email');
 
-    const conflict = await app.inject({
-      method: 'POST',
-      url: '/v1/acessos',
-      headers,
-      payload: { usuarioId, perfilId: viewer.json().id, sistemaId },
-    });
+    const conflict = await app.inject({ method: 'POST', url: '/v1/acessos', headers, payload: screen });
     expect(conflict.statusCode).toBe(409);
     expect(conflict.json()).toEqual({ error: 'access_conflict' });
 
@@ -122,13 +114,24 @@ describe('HTTP acessos', () => {
       method: 'POST',
       url: '/v1/acessos',
       headers,
-      payload: { usuarioId, perfilId: viewer.json().id, sistemaId: portal.json().id },
+      payload: { ...screen, submenuId: other.json().id },
     });
     expect(second.statusCode).toBe(201);
 
-    const listed = await app.inject({ method: 'GET', url: `/v1/acessos?usuarioId=${usuarioId}&sistemaId=${sistemaId}`, headers });
+    const unlinkUsed = await app.inject({
+      method: 'PATCH',
+      url: `/v1/sistemas/${system.json().id}`,
+      headers,
+      payload: { empresaIds: [outsider.json().id] },
+    });
+    expect(unlinkUsed.statusCode).toBe(409);
+    expect(unlinkUsed.json()).toEqual({ error: 'system_company_in_use' });
+
+    const listed = await app.inject({ method: 'GET', url: `/v1/acessos?usuarioId=${usuarioId}`, headers });
     expect(listed.statusCode).toBe(200);
-    expect(listed.json()).toEqual([expect.objectContaining({ id: created.json().id, sistemaId })]);
+    expect(listed.json().itens).toHaveLength(2);
+    expect(listed.json().total).toBe(2);
+    expect(listed.json().itens[0]).toMatchObject({ empresa: 'Alfa', sistema: 'Escala' });
 
     const rejected = await app.inject({
       method: 'PATCH',
@@ -143,9 +146,9 @@ describe('HTTP acessos', () => {
       method: 'PATCH',
       url: `/v1/acessos/${created.json().id}`,
       headers,
-      payload: { perfilId: viewer.json().id, status: 'INATIVO' },
+      payload: { status: 'DESATIVADO' },
     });
     expect(updated.statusCode).toBe(200);
-    expect(updated.json()).toMatchObject({ perfilId: viewer.json().id, sistemaId, status: 'INATIVO' });
+    expect(updated.json()).toMatchObject({ submenuId: submenu.json().id, status: 'DESATIVADO' });
   });
 });

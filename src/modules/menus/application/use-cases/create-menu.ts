@@ -1,3 +1,4 @@
+import { LONG_TEXT_MAX_LENGTH, SHORT_TEXT_MAX_LENGTH, normalizeOptionalText } from '../../../../shared/catalog/text.js';
 import { normalizeMenuName, type Menu, type MenuStatus } from '../../domain/menu.js';
 import { MenuModuleNotFoundError } from '../../domain/menu-errors.js';
 import type { MenuRepository } from '../ports/menu-repository.js';
@@ -5,7 +6,9 @@ import type { ParentModuleLookup } from '../ports/parent-module-lookup.js';
 
 export type CreateMenuInput = {
   nome: string;
-  moduloId: string;
+  moduloId: number;
+  descricaoCurta?: string | null;
+  descricaoLonga?: string | null;
   status?: MenuStatus;
 };
 
@@ -21,7 +24,9 @@ export class CreateMenu {
     return this.menus.add({
       moduloId: input.moduloId,
       nome: normalizeMenuName(input.nome),
-      status: input.status ?? 'ATIVO',
+      descricaoCurta: normalizeOptionalText(input.descricaoCurta, SHORT_TEXT_MAX_LENGTH),
+      descricaoLonga: normalizeOptionalText(input.descricaoLonga, LONG_TEXT_MAX_LENGTH),
+      status: input.status ?? 'ATIVADO',
     });
   }
 }

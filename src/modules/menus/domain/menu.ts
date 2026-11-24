@@ -1,16 +1,18 @@
+import type { CatalogStatus } from '../../../shared/catalog/status.js';
 import { InvalidMenuNameError } from './menu-errors.js';
 
 export const MENU_NAME_MAX_LENGTH = 128;
 
-export type MenuStatus = 'ATIVO' | 'INATIVO';
+export type MenuStatus = CatalogStatus;
 
 export type Menu = {
-  id: string;
-  moduloId: string;
+  id: number;
+  moduloId: number;
   nome: string;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
   status: MenuStatus;
   criadoEm: Date;
-  atualizadoEm: Date;
 };
 
 export function normalizeMenuName(nome: string): string {

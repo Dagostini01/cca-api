@@ -1,24 +1,44 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { statusIdOf, statusOf } from '../../../../shared/catalog/status.js';
 import { DeleteRestrictedError } from '../../../../shared/errors/delete-restricted-error.js';
-import type { MenuRepository, NewMenu } from '../../application/ports/menu-repository.js';
+import type { MenuListFilter, MenuPageQuery, MenuRepository, NewMenu } from '../../application/ports/menu-repository.js';
 import type { Menu } from '../../domain/menu.js';
 import { MenuModuleNotFoundError, MenuNameConflictError, MenuNotFoundError } from '../../domain/menu-errors.js';
 
 function toMenu(row: {
-  id: string;
-  moduloId: string;
+  id: number;
+  moduloId: number;
   nome: string;
-  status: Menu['status'];
-  criadoEm: Date;
-  atualizadoEm: Date;
+  descricaoCurta: string | null;
+  descricaoLonga: string | null;
+  statusId: number | null;
+  criadoEm: Date | null;
 }): Menu {
   return {
     id: row.id,
     moduloId: row.moduloId,
     nome: row.nome,
-    status: row.status,
-    criadoEm: row.criadoEm,
-    atualizadoEm: row.atualizadoEm,
+    descricaoCurta: row.descricaoCurta,
+    descricaoLonga: row.descricaoLonga,
+    status: statusOf(row.statusId),
+    criadoEm: row.criadoEm ?? new Date(),
+  };
+}
+
+function whereOf(filter: MenuListFilter = {}): Prisma.MenuWhereInput {
+  const q = filter.q?.trim();
+  return {
+    ...(filter.moduloId === undefined ? {} : { moduloId: filter.moduloId }),
+    ...(q ? {
+      OR: [
+        { nome: { contains: q } },
+        { descricaoCurta: { contains: q } },
+        { descricaoLonga: { contains: q } },
+        { modulo: { nome: { contains: q } } },
+        { modulo: { sistema: { nome: { contains: q } } } },
+        { modulo: { sistema: { empresas: { some: { empresa: { razaoSocial: { contains: q } } } } } } },
+      ],
+    } : {}),
   };
 }
 
@@ -36,19 +56,42 @@ export class PrismaMenuRepository implements MenuRepository {
 
   async add(menu: NewMenu): Promise<Menu> {
     try {
-      const row = await this.prisma.menu.create({ data: menu });
+      const row = await this.prisma.menu.create({
+        data: {
+          moduloId: menu.moduloId,
+          nome: menu.nome,
+          descricaoCurta: menu.descricaoCurta,
+          descricaoLonga: menu.descricaoLonga,
+          statusId: statusIdOf(menu.status),
+        },
+      });
       return toMenu(row);
     } catch (error) {
       mapPersistenceError(error);
     }
   }
 
-  async list(moduloId?: string): Promise<Menu[]> {
-    const rows = await this.prisma.menu.findMany({ where: moduloId ? { moduloId } : undefined });
+  async list(filter: MenuListFilter = {}): Promise<Menu[]> {
+    const rows = await this.prisma.menu.findMany({ where: whereOf(filter) });
     return rows.map(toMenu);
   }
 
-  async findById(id: string): Promise<Menu | null> {
+  async page(query: MenuPageQuery): Promise<{ rows: Menu[]; total: number }> {
+    const where = whereOf(query);
+    const skip = (query.pagina - 1) * query.tamanho;
+    const [total, rows] = await Promise.all([
+      this.prisma.menu.count({ where }),
+      this.prisma.menu.findMany({
+        where,
+        orderBy: [{ nome: 'asc' }, { moduloId: 'asc' }, { id: 'asc' }],
+        skip,
+        take: query.tamanho,
+      }),
+    ]);
+    return { rows: rows.map(toMenu), total };
+  }
+
+  async findById(id: number): Promise<Menu | null> {
     const row = await this.prisma.menu.findUnique({ where: { id } });
     return row ? toMenu(row) : null;
   }
@@ -57,7 +100,13 @@ export class PrismaMenuRepository implements MenuRepository {
     try {
       const row = await this.prisma.menu.update({
         where: { id: menu.id },
-        data: { moduloId: menu.moduloId, nome: menu.nome, status: menu.status },
+        data: {
+          moduloId: menu.moduloId,
+          nome: menu.nome,
+          descricaoCurta: menu.descricaoCurta,
+          descricaoLonga: menu.descricaoLonga,
+          statusId: statusIdOf(menu.status),
+        },
       });
       return toMenu(row);
     } catch (error) {
@@ -65,7 +114,7 @@ export class PrismaMenuRepository implements MenuRepository {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     try {
       await this.prisma.menu.delete({ where: { id } });
     } catch (error) {

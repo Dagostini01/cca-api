@@ -1,39 +1,69 @@
-import { normalizeKeycloakSubject, normalizeUserEmail, normalizeUserName, type BusinessUser, type UserStatus } from '../../domain/user.js';
-import { InvalidUserSubjectError, UserCompanyNotFoundError } from '../../domain/user-errors.js';
+import type { ScreenDraft } from '../../../accesses/application/ports/access-repository.js';
+import { AccessConflictError } from '../../../accesses/domain/access-errors.js';
+import type { ScreenRef } from '../../../accesses/domain/access.js';
+import { resolveScreen, type ScreenChainLookup, type ScreenSelection } from '../../../accesses/application/services/screen-chain.js';
+import type { UserType } from '../../../../shared/catalog/status.js';
+import {
+  normalizeKeycloakSubject,
+  normalizeOptionalUserDocument,
+  normalizeOptionalUserName,
+  normalizeUserEmail,
+  normalizeUserName,
+  USER_DOCUMENT_MAX_LENGTH,
+  USER_PHONE_MAX_LENGTH,
+  type BusinessUser,
+  type UserStatus,
+} from '../../domain/user.js';
+import { InvalidUserSubjectError } from '../../domain/user-errors.js';
 import type { IdentityDirectory } from '../ports/identity-directory.js';
-import type { ParentCompanyLookup } from '../ports/parent-company-lookup.js';
+import type { UserRegistrar } from '../ports/user-registrar.js';
 import type { UserRepository } from '../ports/user-repository.js';
 
 export type CreateUserInput = {
   nome: string;
+  sobrenome?: string | null;
+  apelido?: string | null;
+  rg?: string | null;
+  cpf?: string | null;
   email: string;
+  celular?: string | null;
   keycloakSub?: string;
-  empresaId: string;
+  tipo?: UserType;
   status?: UserStatus;
+  telas?: ScreenSelection[];
 };
 
 export class CreateUser {
   constructor(
     private readonly users: UserRepository,
-    private readonly companies: ParentCompanyLookup,
+    private readonly registrar: UserRegistrar,
+    private readonly chain: ScreenChainLookup,
     private readonly directory?: IdentityDirectory,
   ) {}
 
-  async execute(input: CreateUserInput): Promise<BusinessUser> {
-    const company = await this.companies.findById(input.empresaId);
-    if (!company) throw new UserCompanyNotFoundError();
+  async execute(input: CreateUserInput, actorSubject: string): Promise<BusinessUser> {
     const nome = normalizeUserName(input.nome);
     const email = normalizeUserEmail(input.email);
-    const status = input.status ?? 'ATIVO';
-    const linked = await this.resolveSubject(input.keycloakSub, { nome, email, enabled: status === 'ATIVO' });
+    const status = input.status ?? 'ATIVADO';
+    const tipo = input.tipo ?? 'ADMINITRADOR';
+    const telas = await this.prepareScreens(input.telas ?? []);
+    const actor = await this.users.findBySubject(actorSubject);
+    const linked = await this.resolveSubject(input.keycloakSub, { nome, email, enabled: status === 'ATIVADO' });
+    const screens: ScreenDraft[] = telas.map((tela) => ({ ...tela, tipo, status: 'ATIVADO' }));
     try {
-      return await this.users.add({
+      return await this.registrar.register({
         keycloakSub: linked.id,
         nome,
+        sobrenome: normalizeOptionalUserName(input.sobrenome),
+        apelido: normalizeOptionalUserName(input.apelido),
+        rg: normalizeOptionalUserDocument(input.rg, USER_DOCUMENT_MAX_LENGTH),
+        cpf: normalizeOptionalUserDocument(input.cpf, USER_DOCUMENT_MAX_LENGTH),
         email,
-        empresaId: input.empresaId,
+        celular: normalizeOptionalUserDocument(input.celular, USER_PHONE_MAX_LENGTH),
+        tipo,
         status,
-      });
+        criadoPorId: actor?.id ?? null,
+      }, screens);
     } catch (error) {
       if (linked.created && this.directory) {
         try {
@@ -44,6 +74,17 @@ export class CreateUser {
       }
       throw error;
     }
+  }
+
+  private async prepareScreens(telas: ScreenSelection[]): Promise<ScreenRef[]> {
+    const seen = new Set<number>();
+    const resolved: ScreenRef[] = [];
+    for (const tela of telas) {
+      if (seen.has(tela.submenuId)) throw new AccessConflictError();
+      seen.add(tela.submenuId);
+      resolved.push(await resolveScreen(this.chain, tela));
+    }
+    return resolved;
   }
 
   private async resolveSubject(

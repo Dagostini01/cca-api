@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { InMemoryCompanyRepository } from '../companies/in-memory-company-repository.js';
 import { testEnv } from '../helpers/env.js';
 import { InMemoryMenuRepository } from '../ownership/in-memory-menu-repository.js';
 import { InMemoryModuleRepository } from '../ownership/in-memory-module-repository.js';
@@ -17,7 +16,6 @@ describe('HTTP ownership chain', () => {
   function createApp() {
     const app = buildApp(testEnv, {
       tokenVerifier: { verify: async () => ({ id: 'sub-1' }) },
-      companyRepository: new InMemoryCompanyRepository(),
       systemRepository: new InMemorySystemRepository(),
       moduleRepository: new InMemoryModuleRepository(),
       menuRepository: new InMemoryMenuRepository(),
@@ -37,21 +35,20 @@ describe('HTTP ownership chain', () => {
     }
   });
 
-  it('creates the chain from company to submenu and keeps each child bound to its parent', async () => {
+  it('creates the chain from system to submenu and keeps each child bound to its parent', async () => {
     const app = createApp();
     const headers = { authorization: 'Bearer access-token' };
-    const company = await app.inject({ method: 'POST', url: '/v1/empresas', headers, payload: { nome: 'Alfa' } });
     const system = await app.inject({
       method: 'POST',
       url: '/v1/sistemas',
       headers,
-      payload: { nome: 'Escala', empresaId: company.json().id },
+      payload: { nome: 'Escala', empresaIds: [1] },
     });
     const missingModule = await app.inject({
       method: 'POST',
       url: '/v1/modulos',
       headers,
-      payload: { nome: 'Cadastro', sistemaId: '5b6c2f0a-1d4e-4a7b-9c3d-8e2f1a0b6c5d' },
+      payload: { nome: 'Cadastro', sistemaId: 999 },
     });
     expect(missingModule.statusCode).toBe(404);
     expect(missingModule.json()).toEqual({ error: 'system_not_found' });
@@ -63,7 +60,7 @@ describe('HTTP ownership chain', () => {
       payload: { nome: ' Cadastro ', sistemaId: system.json().id },
     });
     expect(module.statusCode).toBe(201);
-    expect(module.json()).toMatchObject({ nome: 'Cadastro', sistemaId: system.json().id, status: 'ATIVO' });
+    expect(module.json()).toMatchObject({ nome: 'Cadastro', sistemaId: system.json().id, status: 'ATIVADO' });
 
     const conflict = await app.inject({
       method: 'POST',
@@ -90,7 +87,7 @@ describe('HTTP ownership chain', () => {
       payload: { nome: 'Novo', menuId: menu.json().id },
     });
     expect(submenu.statusCode).toBe(201);
-    expect(submenu.json()).toMatchObject({ menuId: menu.json().id, status: 'ATIVO' });
+    expect(submenu.json()).toMatchObject({ menuId: menu.json().id, status: 'ATIVADO' });
 
     const listed = await app.inject({
       method: 'GET',
@@ -104,10 +101,10 @@ describe('HTTP ownership chain', () => {
       method: 'PATCH',
       url: `/v1/submenus/${submenu.json().id}`,
       headers,
-      payload: { status: 'INATIVO' },
+      payload: { status: 'DESATIVADO' },
     });
     expect(updated.statusCode).toBe(200);
-    expect(updated.json()).toMatchObject({ status: 'INATIVO', menuId: menu.json().id });
+    expect(updated.json()).toMatchObject({ status: 'DESATIVADO', menuId: menu.json().id });
 
     const withoutParent = await app.inject({
       method: 'POST',

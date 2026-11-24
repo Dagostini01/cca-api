@@ -5,11 +5,9 @@ import { createPrismaModuleRepository } from './modules/system-modules/adapters/
 import { createPrismaMenuRepository } from './modules/menus/adapters/outbound/prisma-menu-repository.js';
 import { createPrismaSubmenuRepository } from './modules/submenus/adapters/outbound/prisma-submenu-repository.js';
 import { createPrismaUserRepository } from './modules/users/adapters/outbound/prisma-user-repository.js';
+import { createPrismaUserRegistrar } from './modules/users/adapters/outbound/prisma-user-registrar.js';
 import { createKeycloakUserDirectory } from './modules/users/adapters/outbound/keycloak-user-directory.js';
-import { createPrismaProfileRepository } from './modules/profiles/adapters/outbound/prisma-profile-repository.js';
-import { createPrismaPermissionRepository } from './modules/permissions/adapters/outbound/prisma-permission-repository.js';
 import { createPrismaAccessRepository } from './modules/accesses/adapters/outbound/prisma-access-repository.js';
-import { createWalkingChainResourceLookup } from './modules/permissions/application/services/walking-chain-resource-lookup.js';
 import { createAuthorizer } from './modules/authorization/application/services/authorize-access.js';
 import { createPrismaAuditRepository } from './modules/audits/adapters/outbound/prisma-audit-repository.js';
 import { createAuditRecorder } from './modules/audits/application/services/record-audit.js';
@@ -29,11 +27,8 @@ const moduleRepository = createPrismaModuleRepository(prisma);
 const menuRepository = createPrismaMenuRepository(prisma);
 const submenuRepository = createPrismaSubmenuRepository(prisma);
 const userRepository = createPrismaUserRepository(prisma);
-const profileRepository = createPrismaProfileRepository(prisma);
-const permissionRepository = createPrismaPermissionRepository(prisma);
 const accessRepository = createPrismaAccessRepository(prisma);
 const auditRepository = createPrismaAuditRepository(prisma);
-const chainResourceLookup = createWalkingChainResourceLookup(companyRepository, systemRepository, moduleRepository, menuRepository, submenuRepository);
 const app = buildApp(env, {
   companyRepository,
   systemRepository,
@@ -41,28 +36,17 @@ const app = buildApp(env, {
   menuRepository,
   submenuRepository,
   userRepository,
+  userRegistrar: createPrismaUserRegistrar(prisma),
   identityDirectory: createProductionIdentityDirectory(env.KEYCLOAK_ISSUER),
-  profileRepository,
-  permissionRepository,
-  chainResourceLookup,
   accessRepository,
   auditRepository,
   auditRecorder: createAuditRecorder({
     audits: auditRepository,
     users: userRepository,
-    profiles: profileRepository,
-    permissions: permissionRepository,
-    accesses: accessRepository,
-    systems: systemRepository,
-    resources: chainResourceLookup,
   }),
   authorizer: createAuthorizer({
     users: userRepository,
     accesses: accessRepository,
-    profiles: profileRepository,
-    permissions: permissionRepository,
-    systems: systemRepository,
-    resources: chainResourceLookup,
   }),
 });
 
